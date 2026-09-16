@@ -1,0 +1,13 @@
+# Your patch layer for this dsh profile, applied after every bundle layer:
+# a top-level YAML array of loader patch entries (id-targeted config
+# overrides, disables, and insert lists; `!!js` expressions allowed).
+- insert:
+    - id: mcp-dbx
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: dbx
+        transport: stdio
+        command: "D:\\programs\\nvm\\v24.2.0\\node.exe"
+        args: ["D:\\programs\\nvm\\v24.2.0\\node_modules\\@dbx-app\\mcp-server\\bin\\dbx-mcp-server.js"]
+        env:
+          "DBX_DATA_DIR": "E:\\tools\\DBX_x64-portable\\data"

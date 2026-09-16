@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>导航图标覆盖效果</title>
+<style>
+  body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;margin:0;padding:28px;background:#f6f7f9;color:#1b1d21}
+  h1{font-size:17px;margin:0 0 4px}
+  p.sub{margin:0 0 20px;color:#5c6169;font-size:13px}
+  .wrap{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+  .panel{background:#fff;border:1px solid #e3e5e9;border-radius:14px;padding:14px 12px;width:230px}
+  .panel.dark{background:#1b1d21;border-color:#33363c;color:#f2f3f5}
+  .panel h2{font-size:12px;margin:0 0 10px;color:#7a7f88;font-weight:500}
+  .navList{display:flex;flex-direction:column;gap:4px}
+  .navCell{display:flex;align-items:center;gap:8px;height:40px;padding:9px 16px 9px 12px;
+           border:none;border-radius:12px;background:0 0;color:inherit;font:inherit;
+           cursor:pointer;text-align:left;width:100%;box-sizing:border-box}
+  .navCell:hover{background:#eceef1}
+  .panel.dark .navCell:hover{background:#2a2d33}
+  .navCell.active{background:#eceef1}
+  .panel.dark .navCell.active{background:#2a2d33}
+  .navIcon{flex:none}
+  .navLabel{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+<h1>设置侧边栏图标覆盖效果</h1>
+<p class="sub">「MCP 管理」这一行应由插件打上标记并换成链条图标；其余行保持外壳原有图标。
+左侧为浅色主题，右侧为深色主题 —— 图标颜色都来自行文字颜色，因此应随主题变化。</p>
+<div class="wrap">
+  
+  <div class="panel ">
+    <h2>浅色主题</h2>
+    <div class="navList">
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">通用设置</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">模型</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">插件</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">Agent 预设</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">已归档会话</span></button>
+      <button type="button" class="navCell active" data-mcpmp-nav><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">MCP 管理</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">插件市场</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">Jet Hub</span></button>
+    </div>
+  </div>
+  <div class="panel dark">
+    <h2>深色主题</h2>
+    <div class="navList">
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">通用设置</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">模型</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">插件</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">Agent 预设</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">已归档会话</span></button>
+      <button type="button" class="navCell active" data-mcpmp-nav><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">MCP 管理</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">插件市场</span></button>
+      <button type="button" class="navCell"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.375" stroke="currentColor" stroke-width="1.25"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.25"/></svg><span class="navLabel">Jet Hub</span></button>
+    </div>
+  </div>
+</div>
+<style>
+.mcpmp-root{display:flex;flex-direction:column;gap:16px;padding:4px 2px 24px;color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}
+.mcpmp-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.mcpmp-head h2{margin:0 0 4px;font-size:15px;font-weight:600}
+.mcpmp-head p{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px}
+.mcpmp-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;cursor:pointer;white-space:nowrap}
+.mcpmp-btn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
+.mcpmp-btn:disabled{opacity:.5;cursor:not-allowed}
+.mcpmp-btn-primary{background:var(--dsw-alias-brand-primary);border-color:transparent;color:#fff}
+.mcpmp-btn-primary:hover:not(:disabled){filter:brightness(1.08);background:var(--dsw-alias-brand-primary)}
+.mcpmp-btn-danger{color:var(--dsw-alias-state-error-primary)}
+.mcpmp-btn-sm{height:26px;padding:0 9px;font-size:12px}
+.mcpmp-icon{width:30px;padding:0}
+.mcpmp-list{display:flex;flex-direction:column;gap:8px}
+.mcpmp-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.mcpmp-row{display:flex;align-items:center;gap:10px;padding:10px 12px;min-height:52px}
+.mcpmp-avatar{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto;text-transform:uppercase}
+.mcpmp-name{display:flex;align-items:center;gap:6px;font-weight:500;min-width:0}
+.mcpmp-name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcpmp-meta{color:var(--dsw-alias-label-secondary);font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px}
+.mcpmp-grow{flex:1 1 auto;min-width:0}
+.mcpmp-tag{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:5px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:11px}
+.mcpmp-dot{width:6px;height:6px;border-radius:50%;display:inline-block;flex:0 0 auto;background:var(--dsw-alias-label-secondary)}
+.mcpmp-dot-active{background:var(--dsw-alias-state-success-primary)}
+.mcpmp-dot-failed{background:var(--dsw-alias-state-error-primary)}
+.mcpmp-dot-loading,.mcpmp-dot-pending{background:var(--dsw-alias-state-warn-primary)}
+.mcpmp-switch{position:relative;width:38px;height:22px;border-radius:11px;border:none;background:var(--dsw-alias-border-l2);cursor:pointer;padding:0;flex:0 0 auto;transition:background .15s ease}
+.mcpmp-switch[data-on="true"]{background:var(--dsw-alias-state-success-primary)}
+.mcpmp-switch:disabled{opacity:.5;cursor:not-allowed}
+.mcpmp-switch i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s ease}
+.mcpmp-switch[data-on="true"] i{transform:translateX(16px)}
+.mcpmp-caret{width:20px;height:20px;padding:0;border:none;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;flex:0 0 auto;transition:transform .15s ease}
+.mcpmp-tools{border-top:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);max-height:320px;overflow:auto}
+.mcpmp-tool{display:grid;grid-template-columns:minmax(140px,220px) 1fr;gap:12px;padding:7px 14px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mcpmp-tool:last-child{border-bottom:none}
+.mcpmp-tool code{font-size:12px;color:var(--dsw-alias-label-primary);word-break:break-all}
+.mcpmp-tool p{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mcpmp-tools-empty{padding:10px 14px;color:var(--dsw-alias-label-secondary);font-size:12px}
+.mcpmp-note{padding:9px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:12px}
+.mcpmp-note-warn{color:var(--dsw-alias-state-warn-primary)}
+.mcpmp-note-error{color:var(--dsw-alias-state-error-primary)}
+.mcpmp-overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.32);padding:24px}
+.mcpmp-modal{width:min(640px,100%);max-height:86vh;display:flex;flex-direction:column;border-radius:12px;background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l1);box-shadow:0 12px 40px rgba(0,0,0,.28)}
+.mcpmp-modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.mcpmp-modal-head h3{margin:0;font-size:14px;font-weight:600}
+.mcpmp-modal-body{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.mcpmp-modal-body p{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px}
+.mcpmp-modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-top:1px solid var(--dsw-alias-border-l1)}
+.mcpmp-field{display:flex;flex-direction:column;gap:5px}
+.mcpmp-field label{font-size:12px;font-weight:500}
+.mcpmp-field small{color:var(--dsw-alias-label-secondary);font-size:11px}
+.mcpmp-input,.mcpmp-select,.mcpmp-textarea{width:100%;box-sizing:border-box;border-radius:8px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:12px;padding:7px 9px;font-family:inherit}
+.mcpmp-textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.55;resize:vertical}
+.mcpmp-input:focus,.mcpmp-select:focus,.mcpmp-textarea:focus{outline:none;border-color:var(--dsw-alias-brand-primary)}
+@media (max-width:640px){.mcpmp-tool{grid-template-columns:1fr;gap:2px}}
+button[data-mcpmp-nav]>svg:first-child{display:none}
+button[data-mcpmp-nav]::before{content:"";flex:none;width:16px;height:16px;background-color:currentColor;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:16px 16px;mask-size:16px 16px;-webkit-mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M9.94133%206.50173C11.3218%207.99603%2011.3218%2010.3011%209.94128%2011.7954C9.88691%2011.8542%209.82125%2011.9196%209.72099%2012.0198L7.75707%2013.9838C7.65709%2014.0838%207.592%2014.1491%207.53334%2014.2034C6.03906%2015.5843%203.7327%2015.5854%202.23827%2014.2048C2.17933%2014.1503%202.11374%2014.0844%202.01315%2013.9838C1.91318%2013.8839%201.84922%2013.8188%201.79495%2013.7601C0.413857%2012.2657%200.413909%209.95948%201.795%208.46503C1.84923%208.4064%201.91335%208.34115%202.01321%208.24129L3.79275%206.46313C3.71814%207.08101%203.75236%207.71445%203.90115%208.33518L3.00344%209.23151C2.89398%209.34097%202.8535%209.38307%202.82251%209.41658C1.93771%2010.3744%201.93704%2011.8514%202.82179%2012.8092C2.85279%2012.8427%202.89383%2012.884%203.0034%2012.9936C3.11272%2013.1029%203.15429%2013.1442%203.18777%2013.1752C4.14561%2014.0603%205.62381%2014.0608%206.58178%2013.1758C6.61532%2013.1448%206.65722%2013.1032%206.76685%2012.9935L8.73077%2011.0296C8.83999%2010.9204%208.88142%2010.8787%208.91238%2010.8452C9.79744%209.88728%209.7969%208.40911%208.91173%207.45124C8.88074%207.41775%208.83944%207.3762%208.73011%207.26687C8.62082%207.15757%208.58061%207.11623%208.54712%207.08526C8.37347%206.92477%208.18243%206.79361%207.98088%206.69165L9.00289%205.66964C9.17506%205.78373%209.34035%205.91265%209.49663%206.05703C9.55538%206.11135%209.62026%206.17652%209.72036%206.27662C9.82094%206.3772%209.88686%206.4428%209.94133%206.50173Z%22%20fill%3D%22%23000%22%2F%3E%3Cpath%20d%3D%22M6.06816%209.49196C4.68626%207.99724%204.68667%205.68942%206.06885%204.19487C6.12268%204.13671%206.18789%204.07306%206.28706%203.9739L8.24541%202.01416C8.34478%201.91479%208.41018%201.85055%208.46845%201.79665C9.96301%200.414902%2012.2689%200.414922%2013.7635%201.79665C13.8217%201.85051%2013.8866%201.91559%2013.9858%202.01486C14.0849%202.11394%2014.1502%202.17769%2014.204%202.23583C15.5861%203.7304%2015.5866%206.03823%2014.2047%207.53291C14.1508%207.59125%2014.0854%207.65638%2013.9858%207.75595L12.1994%209.54098C12.2614%208.92982%2012.2185%208.30587%2012.0634%207.69657L12.9956%206.76573C13.1044%206.65692%2013.1458%206.61529%2013.1765%206.58205C14.0621%205.62404%2014.0621%204.1454%2013.1765%203.18738C13.1458%203.15419%2013.104%203.1135%2012.9956%203.00508C12.8877%202.89716%2012.8471%202.85551%2012.814%202.82485C11.8559%201.9389%2010.376%201.93886%209.41794%202.82485C9.38479%202.85554%209.34381%202.89622%209.23564%203.00439L7.27728%204.96413C7.16875%205.07265%207.12708%205.11322%207.09636%205.14643C6.21074%206.10441%206.21153%207.58236%207.09705%208.5404C7.12775%208.57357%207.16826%208.61575%207.27659%208.72408C7.38456%208.83205%207.42647%208.87227%207.45958%208.90293C7.62849%209.0591%207.81309%209.1881%208.00856%209.28894L6.98795%2010.3095C6.82111%2010.1978%206.66052%2010.0715%206.50872%209.93114C6.45057%209.87733%206.38547%209.81341%206.28637%209.71431C6.1871%209.61504%206.12202%209.55018%206.06816%209.49196Z%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");mask-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M9.94133%206.50173C11.3218%207.99603%2011.3218%2010.3011%209.94128%2011.7954C9.88691%2011.8542%209.82125%2011.9196%209.72099%2012.0198L7.75707%2013.9838C7.65709%2014.0838%207.592%2014.1491%207.53334%2014.2034C6.03906%2015.5843%203.7327%2015.5854%202.23827%2014.2048C2.17933%2014.1503%202.11374%2014.0844%202.01315%2013.9838C1.91318%2013.8839%201.84922%2013.8188%201.79495%2013.7601C0.413857%2012.2657%200.413909%209.95948%201.795%208.46503C1.84923%208.4064%201.91335%208.34115%202.01321%208.24129L3.79275%206.46313C3.71814%207.08101%203.75236%207.71445%203.90115%208.33518L3.00344%209.23151C2.89398%209.34097%202.8535%209.38307%202.82251%209.41658C1.93771%2010.3744%201.93704%2011.8514%202.82179%2012.8092C2.85279%2012.8427%202.89383%2012.884%203.0034%2012.9936C3.11272%2013.1029%203.15429%2013.1442%203.18777%2013.1752C4.14561%2014.0603%205.62381%2014.0608%206.58178%2013.1758C6.61532%2013.1448%206.65722%2013.1032%206.76685%2012.9935L8.73077%2011.0296C8.83999%2010.9204%208.88142%2010.8787%208.91238%2010.8452C9.79744%209.88728%209.7969%208.40911%208.91173%207.45124C8.88074%207.41775%208.83944%207.3762%208.73011%207.26687C8.62082%207.15757%208.58061%207.11623%208.54712%207.08526C8.37347%206.92477%208.18243%206.79361%207.98088%206.69165L9.00289%205.66964C9.17506%205.78373%209.34035%205.91265%209.49663%206.05703C9.55538%206.11135%209.62026%206.17652%209.72036%206.27662C9.82094%206.3772%209.88686%206.4428%209.94133%206.50173Z%22%20fill%3D%22%23000%22%2F%3E%3Cpath%20d%3D%22M6.06816%209.49196C4.68626%207.99724%204.68667%205.68942%206.06885%204.19487C6.12268%204.13671%206.18789%204.07306%206.28706%203.9739L8.24541%202.01416C8.34478%201.91479%208.41018%201.85055%208.46845%201.79665C9.96301%200.414902%2012.2689%200.414922%2013.7635%201.79665C13.8217%201.85051%2013.8866%201.91559%2013.9858%202.01486C14.0849%202.11394%2014.1502%202.17769%2014.204%202.23583C15.5861%203.7304%2015.5866%206.03823%2014.2047%207.53291C14.1508%207.59125%2014.0854%207.65638%2013.9858%207.75595L12.1994%209.54098C12.2614%208.92982%2012.2185%208.30587%2012.0634%207.69657L12.9956%206.76573C13.1044%206.65692%2013.1458%206.61529%2013.1765%206.58205C14.0621%205.62404%2014.0621%204.1454%2013.1765%203.18738C13.1458%203.15419%2013.104%203.1135%2012.9956%203.00508C12.8877%202.89716%2012.8471%202.85551%2012.814%202.82485C11.8559%201.9389%2010.376%201.93886%209.41794%202.82485C9.38479%202.85554%209.34381%202.89622%209.23564%203.00439L7.27728%204.96413C7.16875%205.07265%207.12708%205.11322%207.09636%205.14643C6.21074%206.10441%206.21153%207.58236%207.09705%208.5404C7.12775%208.57357%207.16826%208.61575%207.27659%208.72408C7.38456%208.83205%207.42647%208.87227%207.45958%208.90293C7.62849%209.0591%207.81309%209.1881%208.00856%209.28894L6.98795%2010.3095C6.82111%2010.1978%206.66052%2010.0715%206.50872%209.93114C6.45057%209.87733%206.38547%209.81341%206.28637%209.71431C6.1871%209.61504%206.12202%209.55018%206.06816%209.49196Z%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E")}
+</style>

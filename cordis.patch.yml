@@ -1,0 +1,8 @@
+# dsh-mcp-manager-plus bundle patch: inserts this plugin into a profile's
+# layer stack. The host half (lib/index.js) serves the management API on the
+# loopback web server; the `dsh.client` declaration in package.json makes the
+# web app load lib/client.js as the browser half, which registers the
+# "MCP 管理" page in the settings sidebar.
+- insert:
+    - id: mcp-manager-plus
+      name: dsh-mcp-manager-plus
