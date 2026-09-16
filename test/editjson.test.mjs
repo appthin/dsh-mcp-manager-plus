@@ -72,7 +72,11 @@ function boot(initialPatch) {
       return { status, body: text === '' ? null : JSON.parse(text) };
     },
     dispose() {
-      process.env.DSH_HOME = previousHome;
+      // Assigning `undefined` to process.env stores the string "undefined",
+      // which every later suite in the shared process then reads back as a
+      // (broken) home path — so an originally unset variable must be deleted.
+      if (previousHome === undefined) delete process.env.DSH_HOME;
+      else process.env.DSH_HOME = previousHome;
       rmSync(home, { recursive: true, force: true });
     },
   };
