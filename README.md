@@ -48,11 +48,11 @@ MCP 服务器管理插件：在 DeepSeek Harness 设置界面的左侧边栏新�
 # npm 包（发布后可用）
 dsh plugin --profile web add dsh-mcp-manager-plus
 
-# GitHub 仓库（发布后可用）
-dsh plugin --profile web add https://github.com/<owner>/dsh-mcp-manager-plus.git
+# GitHub 仓库
+dsh plugin --profile web add https://github.com/appthin/dsh-mcp-manager-plus.git
 
-# 本地目录（以 link 方式安装，适合开发调试，改动即时生效）
-dsh plugin --profile web add <本目录>
+# 本地目录（先把仓库 clone 到本地；以 link 方式安装，改动即时生效，适合开发调试）
+dsh plugin --profile web add <clone 下来的本仓库目录>
 ```
 
 随后重启 dsh（或等待 profile 热重载），在「设置 → MCP 管理」即可看到页面。
