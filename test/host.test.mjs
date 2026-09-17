@@ -628,6 +628,45 @@ test('validation rejects an invalid server name and a duplicate', async () => {
   }
 });
 
+test('lang=en asks the host for English messages', async () => {
+  const app = await boot();
+  try {
+    const bad = await app.request('POST', '/save?lang=en', { serverName: 'dbx', transport: 'stdio', command: 'npx' });
+    assert.equal(bad.status, 400);
+    assert.match(bad.body.error, /already exists/u);
+
+    const saved = await app.request('POST', '/save?lang=en', {
+      serverName: 'github',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-github'],
+    });
+    assert.equal(saved.status, 200);
+    const imported = await app.request('POST', '/import?lang=en', {
+      json: JSON.stringify({ mcpServers: { github: { command: 'npx', args: ['-y', 'x'] } } }),
+    });
+    assert.equal(imported.status, 200);
+    assert.match(imported.body.message, /Recognized .* configuration; Updated github/u);
+
+    const unknown = await app.request('GET', '/nope?lang=en');
+    assert.equal(unknown.status, 404);
+    assert.match(unknown.body.error, /Unknown endpoint/u);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('the default language stays Chinese when no lang is asked for', async () => {
+  const app = await boot();
+  try {
+    const unknown = await app.request('GET', '/nope');
+    assert.equal(unknown.status, 404);
+    assert.match(unknown.body.error, /未知接口/u);
+  } finally {
+    app.dispose();
+  }
+});
+
 test('a save never leaves the document unparseable, even under odd input', async () => {
   const app = await boot();
   try {

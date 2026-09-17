@@ -106,6 +106,7 @@ profile patch layer — that is your configuration data and will not be deleted.
 | Restart | Destroys and re-initializes the server's connection in place (config unchanged); for recovering from dropped connections |
 | Delete | Removes the server and all of its override rows from the config file |
 | Add | Paste an MCP configuration from **any mainstream tool**; the format is detected, and multiple servers per paste are supported (see table below) |
+| Bilingual | Chinese / English. Defaults to the harness UI language (falling back to the browser's language when unavailable); switch anytime from the page header — the choice is remembered, and host-side messages follow along |
 
 ## The two edit modes
 
