@@ -1,6 +1,6 @@
 # dsh-mcp-manager-plus
 
-English | [中文](README.md)
+English | [中文](README.md) | [Changelog](CHANGELOG.md)
 
 An MCP server manager plugin for DeepSeek Harness: it adds an "MCP" page to the
 settings sidebar, where you can inspect, enable/disable, edit, restart, delete
