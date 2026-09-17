@@ -7,8 +7,53 @@ MCP 服务器管理插件：在 DeepSeek Harness 设置界面的左侧边栏新�
 - 为了方便管理 DeepSeek Harness 中的 MCP 服务器，无需打开配置文件。
 - 插件市场中的其他MCP插件大多都是支持以前旧版本的DSH，安装在新版DSH上根本没法使用，我不得不自己写一个。
 
-## DeepSeek Harness 版本要求
-DSH >=0.1.5-rc.1
+如果你发现本插件在新版DSH上无法正常工作，请提交一个 issue。
+
+## 安装说明
+
+**版本要求：** DSH >= 0.1.5-rc.1（在 0.1.6-alpha.1 上开发并测试）。DSH 自身依赖 Node.js >= 24.2.0 与 Git >= 2.31.0。
+
+### 方式一：插件市场一键安装
+
+已安装 [dshmarket](https://github.com/dsh-market/dsh-market) 的话，打开 **设置 → 插件市场**，
+搜索 `dsh-mcp-manager-plus`，点一下安装即可。
+
+### 方式二：命令行安装
+
+三种来源任选其一（`--profile web` 表示装进 `web` profile，其他 profile 同理替换）：
+
+```sh
+# npm 包（发布后可用）
+dsh plugin --profile web add dsh-mcp-manager-plus
+
+# GitHub 仓库（发布后可用）
+dsh plugin --profile web add https://github.com/<owner>/dsh-mcp-manager-plus.git
+
+# 本地目录（以 link 方式安装，适合开发调试，改动即时生效）
+dsh plugin --profile web add <本目录>
+```
+
+随后重启 dsh（或等待 profile 热重载），在「设置 → MCP 管理」即可看到页面。
+
+### 验证
+
+打开 dsh web，进入 **设置 → MCP 管理**（侧边栏链条图标的那一项）。
+页面没有出现时的排查顺序：
+
+1. 换最新版 Chrome/Edge —— 部分插件的 bundle 在 Chromium 122 以下的内核会加载失败；
+2. 确认装进了正在使用的 profile（`dsh plugin --profile web ls` 查看清单）；
+3. 浏览器控制台若报 slots 相关错误，见下文「为什么 `inject: ['slots']` 不能省」。
+
+### 更新与卸载
+
+```sh
+dsh plugin --profile web ls                          # 查看已装插件
+dsh plugin --profile web add dsh-mcp-manager-plus    # 更新（重新 add 即覆盖为最新版）
+dsh plugin --profile web remove dsh-mcp-manager-plus # 卸载
+```
+
+装有插件市场时，更新也可以在市场页一键完成。卸载后 profile 补丁层里由本插件写入的
+MCP 服务器行会原样保留——它们是你的配置数据，不会被连带删除。
 
 ## 功能
 
@@ -117,14 +162,6 @@ $DSH_HOME/profiles/<profile>/cordis.patch.yml
 - **凭据不外传。** 形如 `KEY|PASSWORD|SECRET|TOKEN` 的配置值在读取时被掩码，
   浏览器回传掩码时再从原值还原，真实密钥不会出现在页面里。
 - **部署内置的服务器只读。** 由 bundle 层提供的行可以停用/启用，但不能编辑或删除。
-
-## 安装
-
-```sh
-dsh plugin --profile web add <本目录或包名>
-```
-
-随后重启 dsh（或等待 profile 热重载），在「设置 → MCP 管理」即可看到页面。
 
 ## 开发
 
