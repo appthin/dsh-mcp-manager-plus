@@ -21,6 +21,8 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
+    "README.en.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
