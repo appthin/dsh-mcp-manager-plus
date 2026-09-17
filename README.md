@@ -64,7 +64,7 @@ dsh plugin --profile web add <本目录>
 
 1. 换最新版 Chrome/Edge —— 部分插件的 bundle 在 Chromium 122 以下的内核会加载失败；
 2. 确认装进了正在使用的 profile（`dsh plugin --profile web ls` 查看清单）；
-3. 浏览器控制台若报 slots 相关错误，见下文「为什么 `inject: ['slots']` 不能省」。
+3. 浏览器控制台有报错时，附上报错内容[提交 issue](../../issues/new)。
 
 ### 更新与卸载
 
@@ -226,55 +226,6 @@ node test/run.mjs          # 全部七个测试套件（共 106 项）
 | `node tools/check-nav-icon.mjs` | 校验导航图标的 mask 载荷是合法可绘制的 16×16 模板 |
 | `node tools/gen-icon-preview.cjs` | 从 dsh 前端 bundle 提取图标，生成 `icon-options.html` 对照页 |
 | `node tools/dump-icon.cjs <IconName>` | 打印某个内置图标的 SVG 路径，便于手写覆盖 |
-
-
-### 为什么 `inject: ['slots']` 不能省
-
-浏览器端插件必须把 `slots` 写进 `inject`。cordis 只会把**声明过**的服务在
-`apply()` 之前解析好；没有声明时，`ctx.get('slots')` 即使在服务已经存在的情况下
-也返回 `undefined`：
-
-```js
-exports.inject = ['slots'];   // ✅ apply() 运行时 ctx.slots 一定可用
-exports.inject = [];          // ❌ ctx.get('slots') 恒为 undefined
-```
-
-后者不会报错，只会让「设置」侧边栏里**永远不出现**这个页面 —— 现象和「插件没装」
-一模一样，极难排查。`test/client.test.mjs` 有两条回归测试守着这一点：一条把测试用的
-假 Context 改成「只有声明过的服务才能作为属性读到」（并会剥离注释后再做静态匹配，
-以免说明性文字被误判成代码），另一条要求服务缺失时**抛错**而不是静默返回。
-
-### 侧边栏图标是怎么换的
-
-settings 外壳按 **section id** 从一张硬编码表里挑导航图标，表里没有的 id 一律落到
-通用齿轮（`general` 用的那个）：
-
-```js
-function navIcon(id) {
-  if (id === "models") return IconDataOutline16
-  if (id === "agent-presets") return IconAgentPresetOutline16
-  if (id === "plugins") return IconPersonalizationOutline16
-  if (id === "archived-sessions") return IconArchiveOutline20
-  return IconSettingsOutline16   // ← 其它所有 id
-}
-```
-
-插件的注册项没有「指定图标」这个字段，而且导航行的 DOM 上**没有 id 或 data-\* 属性**，
-只有哈希类名（`VOzbGW_navCell`）。所以本插件的做法是：
-
-1. 插件注册时启动一个文档级 `MutationObserver`（`watchNavRow`）：外壳一渲染出导航行，
-   就把标签等于本页 `nav` 文案的那一行打上 `data-mcpmp-nav`（按标签自识别，因此别的
-   插件在相邻 order 插入分区也不会认错行）——图标在**第一次点击之前**就是对的；
-2. 页面挂载时 `markNavRow` 再兜底标记一次（观察器不可用的环境）；
-3. 样式表隐藏该行原有的齿轮 `<svg>`，用 `::before` + **mask** 画出链条图标。
-
-用 mask 而不是 background-image，是为了让图标自动继承行文字颜色，从而正确跟随
-浅色/深色主题以及 hover / 选中态。图标路径取自外壳自身的 `IconLinkOutline16`，
-保证视觉语言一致。
-
-要换成别的图标：用 `node tools/dump-icon.cjs IconXxxOutline16` 打印路径，
-替换 `lib/client.js` 里的 `NAV_ICON_PATHS` 即可；`icon-options.html` 里有 22 个候选的对照图。
-
 
 ## License
 
