@@ -1,5 +1,7 @@
 # dsh-mcp-manager-plus
 
+[English](README.en.md) | 中文
+
 MCP 服务器管理插件：在 DeepSeek Harness 设置界面的左侧边栏新增「MCP 管理」页面，
 可直接查看、启用/停用、编辑、重启、删除与添加 MCP 服务器。
 
