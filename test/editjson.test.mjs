@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -30,7 +30,15 @@ function boot(initialPatch) {
   const patchPath = join(profileDir, 'cordis.patch.yml');
   writeFileSync(patchPath, initialPatch);
   // `js-yaml` comes from the profile, not this package.
-  symlinkSync(join(realHome, 'profiles', 'node_modules'), join(home, 'profiles', 'node_modules'), 'junction');
+  // `js-yaml` is resolved from whichever profile node_modules actually has it: a
+  // profile install can hoist it into the profile itself, leaving the shared
+  // profiles dir without it.
+  const yamlFrom = [
+    join(realHome, 'profiles', 'web', 'node_modules'),
+    join(realHome, 'profiles', 'node_modules'),
+  ].find((dir) => existsSync(join(dir, 'js-yaml', 'package.json')));
+  assert.ok(yamlFrom, 'no profile node_modules carries js-yaml');
+  symlinkSync(yamlFrom, join(home, 'profiles', 'node_modules'), 'junction');
   const previousHome = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
 

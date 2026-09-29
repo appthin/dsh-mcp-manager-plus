@@ -214,6 +214,77 @@ test('the stylesheet is injected once and scoped to this plugin', () => {
   );
 });
 
+test('a provider that cannot be restarted keeps a disabled button, not a missing one', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(
+    source,
+    /disabled: groupBusy \|\| child\.phase === ["']disabled["']/u,
+    'the button is rendered and greyed out',
+  );
+  assert.match(source, /restartNeedsEnabled/u, 'and it says why');
+  assert.doesNotMatch(
+    source,
+    /child\.phase === ["']disabled["'] \|\| child\.phase === ["']pending["'][\s\S]{0,40}?\? null/u,
+    'hiding the button leaves the user guessing',
+  );
+});
+test('provider children carry the restart their capability row gives up', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(source, /onRestartChild/u, 'a provider child can be restarted on its own');
+  assert.match(source, /source !== ["']builtin["'][\s\S]{0,400}?props\.onRestart/u, 'the built-in row gives its restart up');
+});
+test('ordinary rows keep the switch that built-in rows moved to their children', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(source, /onChange: props\.onToggle/u, 'an ordinary row still has its switch');
+  assert.match(source, /source !== ["']builtin["']/u, 'only built-in rows hand the switch down');
+});
+test('one provider transition disables every control in its group', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(
+    source,
+    /var groupBusy = busy \|\| providers\.some/u,
+    'the capability shares one busy state across its providers',
+  );
+  assert.match(source, /disabled: groupBusy \|\| child\.phase/u, 'the restart button honours it');
+  assert.match(source, /disabled: groupBusy,/u, 'and so does the switch');
+});
+test('a restarting provider child shows its own busy state and the existing message', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(source, /child\.id === props\.busyId/u, 'the row knows which child is running an action');
+  assert.match(
+    source,
+    /t\('restartDone', \{ name: child\.label \}\)/u,
+    'and it reuses the restart message that already exists',
+  );
+  assert.doesNotMatch(
+    source,
+    /t\('restarted'/u,
+    'an unknown key renders as its literal text, which is what shipped',
+  );
+});
+test('each provider child carries its own switch', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(source, /kind === ["']provider["']/u, 'provider children are told apart');
+  assert.match(source, /onToggleChild/u, 'a provider child is switched on its own');
+});
+test('a built-in row renders its children with each child own phase', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  assert.match(source, /server\.children/u, 'the row reads the child list the host returns');
+  assert.match(source, /kind === ["']provider["']/u, 'only the providers are rendered as children');
+  assert.match(source, /child\.diagnostic/u, 'a child explains a failure or a missing service');
+});
+test('an empty tool list prefers the row note over the generic text', () => {
+  const code = readFileSync(bundlePath, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .map((line) => line.replace(/\/\/.*$/, ''))
+    .join('\n');
+  assert.match(
+    code,
+    /className: 'mcpmp-tools-empty'[\s\S]{0,400}server\.note[\s\S]{0,200}t\('noTools'\)/,
+    'the expanded empty state must consult the row note before the generic text',
+  );
+});
 test('every declared effect is disposable, so the page unwinds on unload', () => {
   const { effects } = loadClientBundle();
   assert.ok(effects.length > 0);
