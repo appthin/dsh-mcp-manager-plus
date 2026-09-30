@@ -13,7 +13,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const dshHome = process.env.DSH_HOME ?? join(process.env.USERPROFILE ?? '', '.dsh');
@@ -74,6 +75,51 @@ async function bootReal(loaderEntries, extraServices = {}) {
   };
 }
 
+/**
+ * Boot the plugin against a temporary profile whose patch file this suite
+ * writes, so a case never depends on what the machine's real profile happens to
+ * contain. Only the patch content is synthetic: `js-yaml` still resolves
+ * through the real profile, which is why every caller keeps `skip: !hasProfile`.
+ * @param patchText - the patch file the plugin will read and report.
+ * @param loaderEntries - simulated loader entries beyond the include row.
+ * @param extraServices - additional `ctx.get` answers (tools, providers).
+ * @returns `{ request, dir }`; the caller removes `dir`.
+ */
+async function bootSynthetic(patchText, loaderEntries, extraServices = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'mcp-manager-live-'));
+  writeFileSync(join(dir, 'cordis.patch.yml'), patchText);
+  writeFileSync(join(dir, 'cordis.yml'), '[]\n');
+  const request = await bootReal(
+    [
+      { options: { id: 'include', name: 'cordis:include', config: { path: join(dir, 'cordis.yml') } } },
+      ...loaderEntries,
+    ],
+    extraServices,
+  );
+  return { request, dir };
+}
+
+/** A patch layer holding one managed `dbx` row, exactly as the page writes it. */
+const DBX_PATCH = `- insert:
+    - id: mcp-dbx
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: dbx
+        transport: stdio
+        command: node
+`;
+
+/** The composed row a live loader hands back for `dbx`. */
+const DBX_ENTRY = {
+  options: {
+    id: 'mcp-dbx',
+    name: '@deepseek-ai/dsh-mcp-client',
+    config: { serverName: 'dbx', transport: 'stdio', command: 'node' },
+  },
+  fiber: { state: 2 },
+  disabled: false,
+};
+
 test('the real profile is reachable and its patch file parses', { skip: !hasProfile }, async () => {
   const request = await bootReal([
     { options: { id: 'include', name: 'cordis:include', config: { path: join(profileDir, 'cordis.yml') } } },
@@ -119,49 +165,62 @@ test('live tool names are reported raw, and mount state follows the fiber', { sk
       { name: 'read', description: 'Not an MCP tool' },
     ],
   };
-  const request = await bootReal(
-    [
-      { options: { id: 'include', name: 'cordis:include', config: { path: join(profileDir, 'cordis.yml') } } },
-      {
-        options: {
-          id: 'mcp-dbx',
-          name: '@deepseek-ai/dsh-mcp-client',
-          config: { serverName: 'dbx', transport: 'stdio', command: 'node' },
-        },
-        fiber: { state: 2 },
-        disabled: false,
-      },
-    ],
-    { tools },
-  );
-  const { body } = await request('GET', '/servers');
-  const dbx = body.servers.find((server) => server.serverName === 'dbx');
-  assert.ok(dbx, 'the dbx server from this profile must be listed');
-  assert.equal(dbx.live.mounted, true, 'the composed row must be matched by serverName, not entry id');
-  assert.equal(dbx.live.phase, 'active');
-  assert.deepEqual(
-    dbx.live.tools.map((tool) => tool.name),
-    ['dbx_list_connections', 'dbx_open_table'],
-    'tools must be attributed by the mcp__<server>__ prefix and named raw',
-  );
-  // The prefix must not leak a same-prefix neighbour from another server.
-  assert.equal(dbx.live.tools.some((tool) => tool.name === 'ping'), false);
+  const { request, dir } = await bootSynthetic(DBX_PATCH, [DBX_ENTRY], { tools });
+  try {
+    const { body } = await request('GET', '/servers');
+    const dbx = body.servers.find((server) => server.serverName === 'dbx');
+    assert.ok(dbx, 'the dbx server from this profile must be listed');
+    assert.equal(dbx.live.mounted, true, 'the composed row must be matched by serverName, not entry id');
+    assert.equal(dbx.live.phase, 'active');
+    assert.deepEqual(
+      dbx.live.tools.map((tool) => tool.name),
+      ['dbx_list_connections', 'dbx_open_table'],
+      'tools must be attributed by the mcp__<server>__ prefix and named raw',
+    );
+    // The prefix must not leak a same-prefix neighbour from another server.
+    assert.equal(dbx.live.tools.some((tool) => tool.name === 'ping'), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a failed fiber is reported as failed rather than silently idle', { skip: !hasProfile }, async () => {
-  const request = await bootReal([
-    { options: { id: 'include', name: 'cordis:include', config: { path: join(profileDir, 'cordis.yml') } } },
-    {
-      options: {
-        id: 'mcp-dbx',
-        name: '@deepseek-ai/dsh-mcp-client',
-        config: { serverName: 'dbx', transport: 'stdio', command: 'node' },
-      },
-      fiber: { state: 3 },
-      disabled: false,
-    },
-  ]);
-  const { body } = await request('GET', '/servers');
-  const dbx = body.servers.find((server) => server.serverName === 'dbx');
-  assert.equal(dbx.live.phase, 'failed');
+  const { request, dir } = await bootSynthetic(DBX_PATCH, [{ ...DBX_ENTRY, fiber: { state: 3 } }]);
+  try {
+    const { body } = await request('GET', '/servers');
+    const dbx = body.servers.find((server) => server.serverName === 'dbx');
+    assert.equal(dbx.live.phase, 'failed');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a patch-layer disable wins over a live-looking loader entry', { skip: !hasProfile }, async () => {
+  // The patch layer is what the page writes and the loader composes on top of,
+  // so a row it disables reads as disabled; asserting on the machine's own
+  // profile here is what made this suite depend on local state.
+  const { request, dir } = await bootSynthetic(`${DBX_PATCH}- id: mcp-dbx\n  disabled: true\n`, [DBX_ENTRY]);
+  try {
+    const { body } = await request('GET', '/servers');
+    const dbx = body.servers.find((server) => server.serverName === 'dbx');
+    assert.equal(dbx.enabled, false);
+    assert.equal(dbx.live.phase, 'disabled');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a row the patch layer does not own is listed from the composed tree', { skip: !hasProfile }, async () => {
+  const { request, dir } = await bootSynthetic('# header\n[]\n', [DBX_ENTRY]);
+  try {
+    const { body } = await request('GET', '/servers');
+    const dbx = body.servers.find((server) => server.serverName === 'dbx');
+    assert.ok(dbx, 'a deployment-provided server must still be listed');
+    assert.equal(dbx.source, 'bundle');
+    assert.equal(dbx.editable, false);
+    assert.equal(dbx.live.mounted, true);
+    assert.equal(dbx.live.phase, 'active');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -49,7 +49,7 @@ const SEED = `# Your patch layer for this dsh profile.
  * Boot the plugin against a temporary profile and return a driver for its
  * routes.
  * @param seed - initial patch-file content (defaults to {@link SEED}).
- * @param options - `{ tools, services, includeEntry }` stubs.
+ * @param options - `{ tools, services, loaderEntries, includeEntry }` stubs.
  * @returns `{ patchPath, request, read, dispose, log }`.
  */
 async function boot(seed = SEED, options = {}) {
@@ -62,6 +62,7 @@ async function boot(seed = SEED, options = {}) {
   const log = [];
   const toolSchemas = options.tools ?? [];
   const services = options.services ?? {};
+  const loaderEntries = options.loaderEntries ?? [];
 
   const ctx = {
     get(name) {
@@ -80,6 +81,7 @@ async function boot(seed = SEED, options = {}) {
               fiber: { state: 2 },
               disabled: false,
             },
+            ...loaderEntries,
           ],
         };
       }
@@ -703,5 +705,87 @@ test('a read-only patch file is reported instead of failing on write', async () 
     assert.equal(body.writable, true);
   } finally {
     app.dispose();
+  }
+});
+
+/** The composed MCP row a live loader hands back for the `dbx` patch row. */
+function dbxEntry(fiber) {
+  return {
+    options: {
+      id: 'mcp-dbx',
+      name: '@deepseek-ai/dsh-mcp-client',
+      config: { serverName: 'dbx', transport: 'stdio', command: 'node.exe' },
+    },
+    fiber,
+    disabled: false,
+  };
+}
+
+// Restarting a row in place is the one place this plugin touches loader
+// internals, and the API for it changed under the plugin: dsh 0.1.6-alpha.1
+// shipped cordis-plugin-loader 1.0.3 with a private `entry._dispose()`, while
+// 0.2.0-rc.2 ships 1.0.5, which dropped it for the public `fiber.restart()`.
+// These three tests pin both generations so an upgrade cannot silently turn
+// "restart" back into "unsupported".
+
+test('restart re-applies the row through fiber.restart() on the newer loader', async () => {
+  const calls = [];
+  const entry = dbxEntry({
+    state: 2,
+    async restart() {
+      calls.push('restart');
+    },
+  });
+  const app = await boot(SEED, { loaderEntries: [entry] });
+  try {
+    const { status, body } = await app.request('POST', '/restart', { id: 'mcp-dbx' });
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.deepEqual(calls, ['restart']);
+    assert.match(body.message, /已重启/u);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('restart still uses _dispose() + init() on the older loader', async () => {
+  const calls = [];
+  const entry = {
+    ...dbxEntry({ state: 2 }),
+    async _dispose() {
+      calls.push('_dispose');
+    },
+    async init() {
+      calls.push('init');
+    },
+  };
+  const app = await boot(SEED, { loaderEntries: [entry] });
+  try {
+    const { status, body } = await app.request('POST', '/restart', { id: 'mcp-dbx' });
+    assert.equal(status, 200, JSON.stringify(body));
+    assert.deepEqual(calls, ['_dispose', 'init']);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('restart reports a disposed fiber as unmounted, and an unknown shape as unsupported', async () => {
+  const disposed = await boot(SEED, {
+    loaderEntries: [dbxEntry({ state: 4, async restart() {} })],
+  });
+  try {
+    const { status, body } = await disposed.request('POST', '/restart', { id: 'mcp-dbx' });
+    assert.equal(status, 400);
+    assert.match(body.error, /未挂载/u);
+  } finally {
+    disposed.dispose();
+  }
+
+  const opaque = await boot(SEED, { loaderEntries: [dbxEntry({ state: 2 })] });
+  try {
+    const { status, body } = await opaque.request('POST', '/restart', { id: 'mcp-dbx' });
+    assert.equal(status, 400);
+    assert.match(body.error, /不支持就地重启/u);
+  } finally {
+    opaque.dispose();
   }
 });

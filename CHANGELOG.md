@@ -5,6 +5,37 @@
 
 0.3.1 之前的开发发生在公开仓库建立之前，历史没有保留。
 
+## [0.4.1] - 2026-09-29
+
+适配 dsh 0.2.0-rc.2（从 0.1.6-alpha.1 升级）。升级本身没有改动本插件使用的任何接口，
+但升级同时把 `@deepseek-ai/cordis-plugin-loader` 从 1.0.3 抬到了 1.0.5，其中一处私有 API
+被移除，故有此版本。
+
+### Fixed
+
+- **「重启」在 dsh 0.2.0-rc.2 上恒为失败**：旧代码用 loader 的私有
+  `entry._dispose()` 重建行（0.1.6-alpha.1 携带的 loader 1.0.3 有该方法），
+  而 0.2.0-rc.2 携带的 1.0.5 已将其删除，于是「重启」总是返回
+  「当前载入器不支持就地重启，请重启 dsh 进程」。现在优先调用公开的
+  `entry.fiber.restart()`，并保留 `_dispose()` + `init()` 分支兼容旧版 loader
+- **测试不再依赖本机 profile 状态**：`test/live.test.mjs` 原先拿本机真实的
+  `cordis.patch.yml` 判断行的启停，本机把 `dbx` 停用后，两个用例便误报
+  `active`/`failed` 断言失败（实测：只删掉那一条停用覆盖即全部通过）。
+  这两类用例改为在临时 profile 上运行，不再受本机状态影响
+
+### Added
+
+- 新增重启路径回归用例：分别覆盖 `fiber.restart()`、`_dispose()` + `init()`、
+  fiber 已销毁、以及两种形态都不具备共 4 种情形；`live` 套件另补
+  「patch 层停用优先于 loader 条目」和「部署提供的行仍被列出」两个用例
+  （测试总数 108 → 113）
+- **插件卡片元数据**：新增 `locale/zh.json` 与 `locale/en.json`（标题、描述）和
+  `icon.svg`，并在 `package.json` 中声明 `icon` 与 `./locale/*.json` 导出。
+  dsh 0.2.0 的插件市场卡片与设置页插件清单会直接读取它们，无需激活插件
+- **`peerDependencies`**：声明 `@deepseek-ai/dsh: ">=0.1.6-alpha.1 <0.3.0"`
+  （`optional: true`，不影响安装），让 dsh 的兼容性门禁能在运行时版本不匹配时明确报错，
+  而不是静默加载
+
 ## [0.4.0] - 2026-09-17
 
 ### Added
@@ -46,5 +77,6 @@
   JSON 编辑、宿主路由、bundle 加载、profile 组合与真实 profile 只读验证；
   另附 e2e 导入、往返校验、图标预览等辅助脚本
 
+[0.4.1]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/appthin/dsh-mcp-manager-plus/tree/v0.3.1
