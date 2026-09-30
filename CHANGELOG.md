@@ -5,6 +5,23 @@
 
 0.3.1 之前的开发发生在公开仓库建立之前，历史没有保留。
 
+## [0.4.2] - 2026-09-30
+
+### Fixed
+
+- **`peerDependencies` 的版本范围在预发布版本上不成立**：上一版写的
+  `>=0.1.6-alpha.1 <0.3.0` 在 pnpm 的默认语义（不含 `includePrerelease`）下会把
+  `0.2.0-rc.1`、`0.2.0-rc.2` 这类预发布版本静默排除——node-semver 只放行
+  「与范围内某个比较符同 `major.minor.patch` 且本身带预发布标签」的版本。
+  于是 dsh-market 在其它机器上更新时报「插件声明的一个依赖版本范围在 registry 上
+  没有可满足的版本」。已改为显式预发布分支：
+  `>=0.1.6-alpha.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0`，
+  在 pnpm 默认语义与 harness 兼容门禁两种模式下都满足 `0.1.6-alpha.1` 与
+  `0.2.0-rc.x`，并仍然拒绝 `0.3.0`
+
+> 附：0.4.1 发布后 `registry.npmmirror.com` 镜像未同步到该版本，更新失败的另一半
+> 原因是镜像缺版本；本版已重新发布并触发镜像同步。
+
 ## [0.4.1] - 2026-09-29
 
 适配 dsh 0.2.0-rc.2（从 0.1.6-alpha.1 升级）。升级本身没有改动本插件使用的任何接口，
@@ -77,6 +94,7 @@
   JSON 编辑、宿主路由、bundle 加载、profile 组合与真实 profile 只读验证；
   另附 e2e 导入、往返校验、图标预览等辅助脚本
 
+[0.4.2]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/appthin/dsh-mcp-manager-plus/tree/v0.3.1

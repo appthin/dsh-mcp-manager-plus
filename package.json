@@ -1,6 +1,6 @@
 {
   "name": "dsh-mcp-manager-plus",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "MCP manager settings page for DeepSeek Harness: list, enable, configure and add MCP servers from the browser, written durably to the profile's user patch layer.",
   "license": "MIT",
   "icon": "./icon.svg",
@@ -41,7 +41,7 @@
     "model-context-protocol"
   ],
   "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.1.6-alpha.1 <0.3.0"
+    "@deepseek-ai/dsh": ">=0.1.6-alpha.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh": {
