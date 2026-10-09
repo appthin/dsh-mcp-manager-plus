@@ -5,6 +5,24 @@
 
 0.3.1 之前的开发发生在公开仓库建立之前，历史没有保留。
 
+## [0.4.3] - 2026-09-30
+
+### Fixed
+
+- **安装路径含空格时补丁文件被误判为「不可写」**（DSH Desktop / Windows）：
+  `fromFileUrl()` 用 `new URL().pathname` 读取路径，会保留百分号编码——DSH Desktop
+  以 `file://` URL 传入 include 路径，`D:\DeepSeek Harness\` 因此变成
+  `DeepSeek%20Harness`，指向一个并不存在的文件，`W_OK` 探测失败后页面报
+  「配置文件不可写」并拒绝所有保存。现在改用 `fileURLToPath()`（解码 `%20`
+  等转义，并正确处理 Windows 盘符前导斜杠与 UNC 主机），手动解析仅作兜底
+  （感谢 @Lzh3070 的报告与定位）
+
+### Added
+
+- 回归用例：`file://` include 路径含 `%20` 时，`patchPath` 必须指向真实文件且
+  `writable` 必须为 `true`；把 `lib/index.js` 还原成旧实现可复现该用例失败
+  （测试总数 113 → 114）
+
 ## [0.4.2] - 2026-09-30
 
 ### Fixed
@@ -94,6 +112,7 @@
   JSON 编辑、宿主路由、bundle 加载、profile 组合与真实 profile 只读验证；
   另附 e2e 导入、往返校验、图标预览等辅助脚本
 
+[0.4.3]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.3.1...v0.4.0

@@ -12,9 +12,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const dshHome = process.env.DSH_HOME ?? join(process.env.USERPROFILE ?? '', '.dsh');
 const profileRequire = createRequire(join(dshHome, 'profiles', 'web', 'package.json'));
@@ -705,6 +706,33 @@ test('a read-only patch file is reported instead of failing on write', async () 
     assert.equal(body.writable, true);
   } finally {
     app.dispose();
+  }
+});
+
+// Regression for the DSH Desktop report: it hands the include path over as a
+// `file://` URL, so an install directory containing a space arrives
+// percent-encoded (`DeepSeek%20Harness`). Reading that verbatim named a file
+// that does not exist, and the writability probe then reported the patch file
+// as read-only, refusing every save.
+test('a percent-encoded file:// include path resolves to the real patch file', async () => {
+  const base = mkdtempSync(join(tmpdir(), 'mcp-manager-url-'));
+  const dir = join(base, 'DeepSeek Harness');
+  mkdirSync(dir);
+  const patchPath = join(dir, 'cordis.patch.yml');
+  writeFileSync(patchPath, SEED);
+  const includeUrl = pathToFileURL(join(dir, 'cordis.yml')).href;
+  assert.match(includeUrl, /%20/u, 'the fixture must really carry percent-encoding');
+
+  const app = await boot(null, { includeEntry: includeUrl });
+  try {
+    const { status, body } = await app.request('GET', '/servers');
+    assert.equal(status, 200);
+    assert.equal(body.patchPath, patchPath, 'the decoded path must name the real patch file');
+    assert.equal(body.writable, true, 'a space in the install path must not look read-only');
+    assert.equal(body.servers.length, 1, 'the seed row must be read through the decoded path');
+  } finally {
+    app.dispose();
+    rmSync(base, { recursive: true, force: true });
   }
 });
 
