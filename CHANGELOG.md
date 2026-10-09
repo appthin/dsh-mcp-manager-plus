@@ -5,7 +5,7 @@
 
 0.3.1 之前的开发发生在公开仓库建立之前，历史没有保留。
 
-## [0.4.3] - 2026-09-30
+## [0.4.3] - 2026-10-09
 
 ### Fixed
 
@@ -16,12 +16,21 @@
   「配置文件不可写」并拒绝所有保存。现在改用 `fileURLToPath()`（解码 `%20`
   等转义，并正确处理 Windows 盘符前导斜杠与 UNC 主机），手动解析仅作兜底
   （感谢 @Lzh3070 的报告与定位）
+- **暗色主题下主按钮白底白字、文字不可读**：`.mcpmp-btn-primary` 把前景硬编码成
+  `#fff`，而背景用的 `--dsw-alias-brand-primary` 会随主题翻转（亮色 `#0f1115`、
+  暗色 `#f9fafb`），暗色下于是成了白字配近白底。现在按 harness 自身主按钮的配对
+  改用 `--dsw-alias-button-primary-fill` + `--dsw-alias-label-primary-foreground`
+  （分别以 `brand-primary` / `label-primary-inverted` / `#fff` 兜底），hover 换成
+  官方的 `--dsw-alias-button-primary-hover`，取代在近白底上几乎无效的
+  `filter:brightness(1.08)`（感谢 @OTH-C3 的报告与定位）
 
 ### Added
 
 - 回归用例：`file://` include 路径含 `%20` 时，`patchPath` 必须指向真实文件且
   `writable` 必须为 `true`；把 `lib/index.js` 还原成旧实现可复现该用例失败
-  （测试总数 113 → 114）
+- 回归用例：任何把「会随主题翻转的填充色」（`brand-primary` /
+  `button-primary-fill`）与字面前景色写进同一条规则的样式都会被判失败
+  （测试总数 113 → 115）
 
 ## [0.4.2] - 2026-09-30
 

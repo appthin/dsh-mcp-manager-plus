@@ -210,8 +210,38 @@ test('the stylesheet is injected once and scoped to this plugin', () => {
   assert.deepEqual(
     literals.filter((value) => !['#fff'].includes(value)),
     [],
-    'no hard-coded colours other than white on the primary button',
+    'no hard-coded colours other than white (avatar, switch knob, primary-button fallback)',
   );
+});
+
+// Regression for the dark-theme report: `--dsw-alias-brand-primary` is dark in
+// the light theme and near-white in the dark one, so a literal foreground on top
+// of it is unreadable in one of the two. Anything that fills with a flipping
+// token has to take its own foreground from a token as well.
+test('a theme-flipping fill never sits under a literal foreground', () => {
+  const { styles } = loadClientBundle();
+  const rules = (styles[0].textContent.match(/[^{}]+\{[^{}]*\}/gu) ?? []).map((rule) =>
+    rule.trim(),
+  );
+  assert.ok(rules.length > 0, 'the stylesheet must contain rules to check');
+
+  const flipsAsFill =
+    /background(?:-color)?\s*:[^;{}]*var\(\s*--dsw-alias-(?:brand-primary|button-primary-fill)\b/u;
+  const literalForeground = /(?:^|;)\s*color\s*:\s*(?!var\()/u;
+
+  const offenders = rules.filter(
+    (rule) => flipsAsFill.test(rule) && literalForeground.test(rule),
+  );
+  assert.deepEqual(
+    offenders,
+    [],
+    'a fill that flips between light and dark needs a token foreground, not a literal',
+  );
+
+  // The check must be able to see the rule it is protecting.
+  const primary = rules.filter((rule) => rule.startsWith('.mcpmp-btn-primary{'));
+  assert.equal(primary.length, 1, 'the primary button rule must be present');
+  assert.match(primary[0], /color:var\(--dsw-alias-label-primary/u);
 });
 
 test('every declared effect is disposable, so the page unwinds on unload', () => {
