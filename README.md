@@ -231,6 +231,7 @@ node test/run.mjs          # 全部八个测试套件（共 127 项）
 | `node tools/check-nav-icon.mjs` | 校验导航图标的 mask 载荷是合法可绘制的 16×16 模板 |
 | `node tools/gen-icon-preview.cjs` | 从 dsh 前端 bundle 提取图标，生成 `icon-options.html` 对照页 |
 | `node tools/dump-icon.cjs <IconName>` | 打印某个内置图标的 SVG 路径，便于手写覆盖 |
+| `node tools/verify-release.mjs [版本]` | 发布后验证：registry 是否有该版本、全新安装是否带上了自己的 `js-yaml`、以及「profile 顶层被换成 v5」的两种情形；`--sync-mirror` 顺带等 npmmirror 同步 |
 
 ## License
 

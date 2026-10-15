@@ -268,6 +268,7 @@ layer in `lib/yaml.js` included).
 | `node tools/check-nav-icon.mjs` | checks that the nav icon's mask payload is a drawable 16×16 template |
 | `node tools/gen-icon-preview.cjs` | extracts icons from the dsh web bundle into the `icon-options.html` comparison page |
 | `node tools/dump-icon.cjs <IconName>` | prints an icon's SVG path for hand-written overrides |
+| `node tools/verify-release.mjs [version]` | post-publish verification: the registry serves the version, a fresh install pulled its own `js-yaml`, and both halves of the "profile hoists a v5" scenario; `--sync-mirror` also waits for the npmmirror mirror |
 
 ## License
 
