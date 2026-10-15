@@ -6,6 +6,7 @@
  * cache. Run with:  node test/run.mjs
  */
 import './patch.test.mjs';
+import './yaml.test.mjs';
 import './import.test.mjs';
 import './editjson.test.mjs';
 import './host.test.mjs';

@@ -227,12 +227,13 @@ converged state.
 ## Development
 
 ```sh
-node test/run.mjs          # all seven suites (106 assertions)
+node test/run.mjs          # all eight suites (127 assertions)
 ```
 
 | Suite | Coverage |
 | --- | --- |
 | `test/patch.test.mjs` | patch-layer segmentation, parsing, validation, generation and byte-exact round-trips |
+| `test/yaml.test.mjs` | the `js-yaml` compatibility layer: capability probing, skipping an incompatible copy, and `!!js` fidelity under the degraded parser |
 | `test/import.test.mjs` | config formats of 14 tools, the TOML subset, JSON comments and trailing commas |
 | `test/editjson.test.mjs` | JSON-mode editing: in-place updates, renames keeping id and overrides, multi-server rejection |
 | `test/host.test.mjs` | every host-side HTTP route, driving the real `apply()` through a fake Cordis context |
@@ -241,7 +242,8 @@ node test/run.mjs          # all seven suites (106 assertions)
 | `test/live.test.mjs` | read-only run against the real profile, confirming live configs read correctly with secrets masked |
 
 The tests use no test framework — just Node's built-in `node:test` — and reuse
-the `js-yaml` from the profile (the same parse path as the runtime).
+the `js-yaml` from the profile (the same parse path as the runtime, compatibility
+layer in `lib/yaml.js` included).
 
 ### Layout
 
@@ -250,6 +252,7 @@ the `js-yaml` from the profile (the same parse path as the runtime).
 | `lib/index.js` | host side: HTTP API, inventory projection, write operations |
 | `lib/import.js` | import parsing: each tool's config format → this plugin's server shape |
 | `lib/patch.js` | patch-layer read/write: segmentation, parsing, validation, generation |
+| `lib/yaml.js` | `js-yaml` compatibility: capability probing, skipping an incompatible copy, and a degraded parser when no copy can carry the custom type |
 | `lib/client.js` | browser side: the settings page UI (hand-written lazy-CJS bundle, no build step) |
 | `cordis.patch.yml` | the bundle patch inserting this plugin into the profile's layer stack |
 

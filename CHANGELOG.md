@@ -5,6 +5,38 @@
 
 0.3.1 之前的开发发生在公开仓库建立之前，历史没有保留。
 
+## [0.4.4] - 2026-10-15
+
+### Fixed
+
+- **profile 顶层被提升到 `js-yaml` v5 时整页「加载失败：yaml.Type is not a constructor」**：
+  `loadYaml()` 用 v3/v4 的自定义类型 API（`new yaml.Type(...)` + `schema.extend(...)`）
+  承载 `!!js` 标签，而 `js-yaml` 一直是按 profile 锚点解析的——任何别的插件
+  （如声明 `js-yaml@^5` 的插件）把 v5 提升到 profile 顶层后，`new yaml.Type(...)`
+  就抛错，所有路由 500、面板完全不可用（感谢 @asfre 的报告与定位）。
+  现在不再「谁先解析到就用谁」，而是在新增的 `lib/yaml.js` 里**探测能力**：
+  一个副本构造不出 `!!js` 类型就跳过、继续沿锚点往下找，于是插件在
+  `dependencies` 中钉住的 `js-yaml@^4.1.0` 会接管，而不是被顶层提升的 v5 拖垮
+- **所有副本都不兼容时仍有兜底**：若插件目录与 profile 里没有任何能构造自定义类型的
+  副本，也不再抛错，而是改用兼容解析——解析前把 `!!js` 标签替换成占位符、解析后再
+  还原为表达式节点（扫描会跳过引号与注释内的文本，`args: ["echo !!js x"]`、
+  `PLAIN: "!!js not a tag"` 这类值不会被误判成表达式）。面板因此照常加载与管理，
+  且 `!!js` 语义不被改写：降级解析与快路径读出的值完全相同，回写的字节也完全一致
+- 降级时在页面「配置提示」里写明实际解析到的 `js-yaml` 与降级状态，不再静默降级
+
+### Added
+
+- `dependencies` 新增 `js-yaml: ^4.1.0`：插件自带确定的副本，不再依赖 profile 顶层
+  提升结果；解析顺序仍是 profile 锚点优先（与载入器 include 插件一致），只是不再
+  接受一个无法承载 `!!js` 的副本
+- 回归用例 `test/yaml.test.mjs`（11 项）：能力探测（`Type` 抛错、缺 `extend`、
+  非对象等形态）、注入加载器验证「profile 锚点的不兼容副本让位于插件的可用副本」、
+  完全没有可解析副本时报出明确错误，以及降级解析下 `!!js` 的行内 / 块 / 流式三种
+  写法、「与快路径逐字节一致」、「回写后仍能通过校验并往返」
+- 回归用例 `test/host.test.mjs`：在临时 profile 里放一个「v5 形状」（可解析、无自定义
+  类型）的 `js-yaml`，`GET /servers` 必须仍返回 200 并列出种子行，而不是整页不可用
+  （测试总数 115 → 127）
+
 ## [0.4.3] - 2026-10-09
 
 ### Fixed
@@ -121,6 +153,7 @@
   JSON 编辑、宿主路由、bundle 加载、profile 组合与真实 profile 只读验证；
   另附 e2e 导入、往返校验、图标预览等辅助脚本
 
+[0.4.4]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.0...v0.4.1

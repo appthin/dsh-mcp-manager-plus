@@ -191,12 +191,13 @@ $DSH_HOME/profiles/<profile>/cordis.patch.yml
 ## 开发
 
 ```sh
-node test/run.mjs          # 全部七个测试套件（共 106 项）
+node test/run.mjs          # 全部八个测试套件（共 127 项）
 ```
 
 | 套件 | 覆盖范围 |
 | --- | --- |
 | `test/patch.test.mjs` | 补丁层分段、解析、校验、生成与逐字节往返 |
+| `test/yaml.test.mjs` | `js-yaml` 兼容层：能力探测、跳过硬编码不兼容的副本、降级解析下 `!!js` 的语义保真 |
 | `test/import.test.mjs` | 14 种工具的配置格式、TOML 子集、JSON 注释与尾逗号 |
 | `test/editjson.test.mjs` | JSON 模式编辑：原地更新、重命名保留 id 与覆盖、多条拒绝 |
 | `test/host.test.mjs` | 宿主端全部 HTTP 路由，用假的 Cordis 上下文驱动真实 `apply()` |
@@ -205,7 +206,7 @@ node test/run.mjs          # 全部七个测试套件（共 106 项）
 | `test/live.test.mjs` | 只读地跑真实 profile，确认线上配置能被正确读出且凭据已掩码 |
 
 测试不依赖任何测试框架，只用 Node 内置的 `node:test`，并复用 profile 中已有的
-`js-yaml`（与运行时同一条解析路径）。
+`js-yaml`（与运行时同一条解析路径，含 `lib/yaml.js` 的兼容层）。
 
 ### 结构
 
@@ -214,6 +215,7 @@ node test/run.mjs          # 全部七个测试套件（共 106 项）
 | `lib/index.js` | 宿主端：HTTP API、清单投影、写操作 |
 | `lib/import.js` | 导入解析：各工具配置格式 → 本插件的服务器形状 |
 | `lib/patch.js` | 补丁层读写：分段、解析、校验、生成 |
+| `lib/yaml.js` | `js-yaml` 兼容层：副本能力探测、跳过硬编码不兼容的副本、无自定义类型时的降级解析 |
 | `lib/client.js` | 浏览器端：设置页面 UI（手写 lazy-CJS bundle，无构建步骤） |
 | `cordis.patch.yml` | bundle 补丁，把本插件插入 profile 的层栈 |
 

@@ -16,10 +16,12 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolveEntryYaml, yamlResolutionAnchors } from '../lib/yaml.js';
 
 const dshHome = process.env.DSH_HOME ?? join(process.env.USERPROFILE ?? '', '.dsh');
 const profileRequire = createRequire(join(dshHome, 'profiles', 'web', 'package.json'));
 const yaml = profileRequire('js-yaml');
+const yamlPath = profileRequire.resolve('js-yaml');
 
 const plugin = await import('../lib/index.js');
 
@@ -815,5 +817,60 @@ test('restart reports a disposed fiber as unmounted, and an unknown shape as uns
     assert.match(body.error, /不支持就地重启/u);
   } finally {
     opaque.dispose();
+  }
+});
+
+// The reported regression, end to end. Another plugin's `js-yaml@^5` hoisted a
+// v5 to the profile root; `new yaml.Type(...)` then threw inside `loadYaml()`
+// and every route answered 500, so the page showed nothing but
+// `加载失败：yaml.Type is not a constructor`. A v5-shaped copy (it parses, it
+// has no custom-type API) is planted where the profile anchor finds it, and the
+// panel must still come up and list the seeded row.
+test('a js-yaml without the custom-type API no longer breaks the panel', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'mcp-manager-home-'));
+  const fakeDir = join(home, 'profiles', 'web', 'node_modules', 'js-yaml');
+  mkdirSync(fakeDir, { recursive: true });
+  writeFileSync(
+    join(fakeDir, 'package.json'),
+    JSON.stringify({ name: 'js-yaml', version: '5.4.3', main: 'index.js' }),
+  );
+  writeFileSync(
+    join(fakeDir, 'index.js'),
+    `const real = require(${JSON.stringify(yamlPath)});\n` +
+      'const mod = { load: (text, options) => real.load(text, options) };\n' +
+      'if (real.JSON_SCHEMA) mod.JSON_SCHEMA = real.JSON_SCHEMA;\n' +
+      'module.exports = mod;\n',
+  );
+
+  const seeded = mkdtempSync(join(tmpdir(), 'mcp-manager-profile-'));
+  const patchPath = join(seeded, 'cordis.patch.yml');
+  writeFileSync(patchPath, SEED);
+  const previousHome = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  const app = await boot(null, { includeEntry: pathToFileURL(join(seeded, 'cordis.yml')).href });
+  try {
+    // Whether this copy or a capable one is picked is environment-dependent
+    // (a workspace node_modules can provide the plugin's own pinned copy), so
+    // the probe decides which assertions apply — but the endpoint must answer
+    // in both cases.
+    const probe = await resolveEntryYaml(yamlResolutionAnchors(seeded, { home, profile: 'web' }));
+    const { status, body } = await app.request('GET', '/servers');
+    assert.equal(status, 200, `the panel must answer, got ${status}: ${JSON.stringify(body)}`);
+    assert.equal(body.patchPath, patchPath);
+    assert.equal(body.servers.length, 1, 'the seeded row must still be listed');
+    assert.equal(body.servers[0].serverName, 'dbx');
+    assert.equal(body.writable, true);
+    if (probe.degraded) {
+      assert.ok(
+        body.issues.some((issue) => issue.includes('js-yaml')),
+        'a degraded parse must be reported to the user instead of hidden',
+      );
+    }
+  } finally {
+    app.dispose();
+    if (previousHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previousHome;
+    rmSync(home, { recursive: true, force: true });
+    rmSync(seeded, { recursive: true, force: true });
   }
 });
