@@ -70,18 +70,51 @@ const reactStub = {
  * Load the client bundle into a fake browser and return what it registered.
  * @returns `{ exports, registrations, effects, styles }`.
  */
-function loadClientBundle() {
+function loadClientBundle(options = {}) {
+  // A shell that declares `settings.section.icon` is the default; pass
+  // `iconSeat: false` to model an older shell that has no such seat, where the
+  // plugin must keep working through its stylesheet fallback.
+  const { iconSeat = true } = options;
   const registrations = [];
   const effects = [];
   const styles = [];
   const listeners = new Map();
+  const observers = [];
+  const queries = [];
+
+  /**
+   * MutationObserver stand-in. The legacy nav-row tagger installs one; the
+   * icon-seat path must never do so, which is what the tests observe.
+   */
+  class ObserverStub {
+    constructor(callback) {
+      this.callback = callback;
+      this.observed = false;
+      this.disconnected = false;
+      observers.push(this);
+    }
+    observe() {
+      this.observed = true;
+    }
+    disconnect() {
+      this.disconnected = true;
+    }
+    takeRecords() {
+      return [];
+    }
+  }
 
   const documentStub = {
     head: { appendChild: (node) => styles.push(node) },
     getElementById: () => null,
     createElement: (tag) => ({ tag, id: '', textContent: '', style: {} }),
+    querySelectorAll: (selector) => {
+      queries.push(selector);
+      return [];
+    },
     addEventListener: (type, fn) => listeners.set(type, fn),
     removeEventListener: (type) => listeners.delete(type),
+    documentElement: {},
   };
 
   let captured = null;
@@ -98,8 +131,25 @@ function loadClientBundle() {
 
   const source = readFileSync(bundlePath, 'utf8');
   // The bundle is a script that calls window.__ModuleLoader__.load(...).
-  const run = new Function('window', 'document', 'fetch', 'setTimeout', 'clearTimeout', 'console', source);
-  run(windowStub, documentStub, () => Promise.reject(new Error('no fetch in this test')), () => 0, () => {}, console);
+  const run = new Function(
+    'window',
+    'document',
+    'fetch',
+    'setTimeout',
+    'clearTimeout',
+    'console',
+    'MutationObserver',
+    source,
+  );
+  run(
+    windowStub,
+    documentStub,
+    () => Promise.reject(new Error('no fetch in this test')),
+    () => 0,
+    () => {},
+    console,
+    ObserverStub,
+  );
 
   assert.ok(captured, 'the bundle must register a factory');
 
@@ -111,7 +161,13 @@ function loadClientBundle() {
   // made a plugin that never declared `slots` look like it worked.
   const slotsStub = {
     inject(key, callback) {
-      assert.equal(key, 'settings.section', 'the page must register into the settings section seat');
+      assert.ok(
+        ['settings.section', 'settings.section.icon'].includes(key),
+        `unexpected slot dependency "${key}"`,
+      );
+      // An older shell never declares the icon seat, so its injection parks
+      // instead of running — modelled here by not calling back.
+      if (key === 'settings.section.icon' && !iconSeat) return () => {};
       return callback();
     },
     register(options, component) {
@@ -152,7 +208,7 @@ function loadClientBundle() {
   if (declared.has('locale')) ctx.locale = localeStub;
 
   captured.apply(ctx);
-  return { exports: captured, registrations, effects, styles, documentStub };
+  return { exports: captured, registrations, effects, styles, documentStub, observers, queries };
 }
 
 test('the bundle registers a factory under the package id', () => {
@@ -174,6 +230,59 @@ test('apply() claims the settings section seat with an id of its own', () => {
   assert.equal(typeof section.component, 'function', 'the registration must carry a component');
   assert.equal(typeof section.options.label, 'function');
   assert.equal(section.options.label(), 'MCP 管理', 'the nav label must follow the default locale');
+});
+
+test("the nav glyph is registered into the shell's icon seat, keyed to the section id", () => {
+  const { registrations } = loadClientBundle();
+  const icon = registrations.find((entry) => entry.options?.name === 'settings.section.icon');
+  assert.ok(icon, 'the row glyph must register into settings.section.icon');
+  // The shell draws the entry whose id matches the row it is rendering and
+  // silently falls back to its generic gear for any other id.
+  assert.equal(icon.options.id, 'mcp', 'the icon id must equal the section id');
+  assert.equal(typeof icon.component, 'function');
+
+  // The seat hands over the square size the shell's own icons use and expects
+  // the row's colour via currentColor, so the glyph must hard-code neither.
+  const node = icon.component({ size: 16, active: false });
+  const paths = node.children[0];
+  assert.equal(node.type, 'svg');
+  assert.equal(node.props.width, 16);
+  assert.equal(node.props.height, 16);
+  assert.equal(node.props.viewBox, '0 0 16 16');
+  assert.equal(paths.length, 2, "the glyph is the shell's two-link chain");
+  assert.ok(
+    paths.every((path) => path.props.fill === 'currentColor'),
+    'the glyph must take the row colour, not a literal one',
+  );
+});
+
+test('a shell with the icon seat never gets the legacy row tagger', () => {
+  // The double-icon bug: the shell already drew our glyph in its icon seat and
+  // the stylesheet painted a second one beside the gear. With the seat live the
+  // tagger must not even start observing the document.
+  const { observers } = loadClientBundle();
+  assert.equal(observers.length, 0, 'no row tagging on a shell that has the icon seat');
+});
+
+test('a shell without the icon seat keeps the stylesheet glyph and still shows the page', () => {
+  // Compatibility target: dsh 0.1.6-alpha.1 … 0.2.1 have no icon seat at all.
+  // The page must still register, and the mask fallback must still watch rows.
+  const { observers, registrations } = loadClientBundle({ iconSeat: false });
+  assert.ok(
+    registrations.some((entry) => entry.options?.name === 'settings.section'),
+    'the page must register even when the icon seat is missing',
+  );
+  assert.ok(
+    !registrations.some((entry) => entry.options?.name === 'settings.section.icon'),
+    'no glyph registration without a seat to hold it',
+  );
+  assert.equal(observers.length, 1, 'the stylesheet fallback must watch for its row');
+  assert.equal(observers[0].observed, true);
+});
+
+test('the fallback stylesheet still carries the row override for old shells', () => {
+  const { styles } = loadClientBundle();
+  assert.match(styles[0].textContent, /data-mcpmp-nav/u);
 });
 
 test('the page label follows the active locale', () => {

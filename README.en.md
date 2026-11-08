@@ -42,7 +42,7 @@ paste a whole replacement block, and renaming is just changing the name.
 
 ## Installation
 
-**Requirements:** DSH >= 0.1.6-alpha.1 and < 0.3.0 (tested on 0.1.6-alpha.1 and 0.2.0-rc.2).
+**Requirements:** DSH >= 0.1.6-alpha.1 and < 0.3.0 (tested on 0.1.6-alpha.1, 0.2.0-rc.2 and 0.2.2-rc.1).
 DSH itself needs Node.js >= 24.2.0 and Git >= 2.31.0.
 
 ### Option 1: one-click install from the plugin market
