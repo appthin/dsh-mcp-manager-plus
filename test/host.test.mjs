@@ -12,7 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -53,7 +53,7 @@ const SEED = `# Your patch layer for this dsh profile.
  * routes.
  * @param seed - initial patch-file content (defaults to {@link SEED}).
  * @param options - `{ tools, services, loaderEntries, includeEntry }` stubs.
- * @returns `{ patchPath, request, read, dispose, log }`.
+ * @returns `{ patchPath, request, read, dispose, log, guards, listeners, emit }`.
  */
 async function boot(seed = SEED, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-manager-host-'));
@@ -66,10 +66,25 @@ async function boot(seed = SEED, options = {}) {
   const toolSchemas = options.tools ?? [];
   const services = options.services ?? {};
   const loaderEntries = options.loaderEntries ?? [];
+  // Enforcement seams: the guard the plugin installs, and the events it listens
+  // for. Both are read back by the binding tests.
+  const guards = [];
+  const listeners = new Map();
 
   const ctx = {
     get(name) {
-      if (name === 'tools') return { schemas: () => toolSchemas };
+      if (name === 'tools') {
+        return {
+          schemas: () => toolSchemas,
+          guard: (guard) => {
+            guards.push(guard);
+            return () => {
+              const index = guards.indexOf(guard);
+              if (index >= 0) guards.splice(index, 1);
+            };
+          },
+        };
+      }
       if (Object.hasOwn(services, name)) return services[name];
       if (name === 'loader') {
         if (options.includeEntry === null) return undefined;
@@ -89,6 +104,15 @@ async function boot(seed = SEED, options = {}) {
         };
       }
       return undefined;
+    },
+    on(event, listener) {
+      if (!listeners.has(event)) listeners.set(event, []);
+      listeners.get(event).push(listener);
+      return () => {
+        const list = listeners.get(event) ?? [];
+        const index = list.indexOf(listener);
+        if (index >= 0) list.splice(index, 1);
+      };
     },
     effect(factory, label) {
       const dispose = factory();
@@ -144,6 +168,14 @@ async function boot(seed = SEED, options = {}) {
     request,
     read: () => readFileSync(patchPath, 'utf8'),
     parse: () => yaml.load(readFileSync(patchPath, 'utf8'), { schema }),
+    guards,
+    listeners,
+    log,
+    /** Fire one captured event, awaited the way the loader awaits listeners. */
+    async emit(event, payload) {
+      const list = listeners.get(event) ?? [];
+      for (const listener of list) await listener(payload);
+    },
     dispose() {
       for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup();
       rmSync(dir, { recursive: true, force: true });
@@ -874,3 +906,305 @@ test('a js-yaml without the custom-type API no longer breaks the panel', async (
     rmSync(seeded, { recursive: true, force: true });
   }
 });
+
+// ── project bindings ────────────────────────────────────────────────────────
+//
+// A binding is this plugin's own durable data, so it must never be written into
+// the loader patch layer — a remount per binding edit would drop every MCP
+// connection in the profile.
+
+/** The binding file's path inside a boot's temporary profile. */
+function bindingsPath(dir) {
+  return join(dir, 'plugin-data', 'dsh-mcp-manager-plus', 'bindings.json');
+}
+
+/**
+ * A stand-in agent exposing only what enforcement reads: its session directory
+ * and its scope's `tools.restrict`.
+ */
+function fakeAgent(cwd) {
+  const restrictions = [];
+  const lifted = [];
+  return {
+    id: 'agent-1',
+    session: cwd === undefined ? {} : { header: { cwd } },
+    restrictions,
+    lifted,
+    ctx: {
+      tools: {
+        restrict(filter) {
+          restrictions.push(filter);
+          const dispose = () => {
+            lifted.push(filter);
+          };
+          return dispose;
+        },
+      },
+    },
+  };
+}
+
+test('a server reports its project binding in the inventory', async () => {
+  const app = await boot();
+  try {
+    const { status, body } = await app.request('GET', '/servers');
+    assert.equal(status, 200);
+    assert.deepEqual(body.servers[0].binding, { paths: [], restricted: false });
+    assert.equal(body.bindingsPath, bindingsPath(app.dir));
+    assert.equal(existsSync(bindingsPath(app.dir)), false, 'listing must not create the file');
+  } finally {
+    app.dispose();
+  }
+});
+
+test('binding a server to a project directory persists, and clearing it restores the default', async () => {
+  const app = await boot();
+  try {
+    const bound = await app.request('POST', '/bind', {
+      serverName: 'dbx',
+      paths: ['E:\\work\\alpha'],
+    });
+    assert.equal(bound.status, 200, JSON.stringify(bound.body));
+    assert.equal(bound.body.ok, true);
+    assert.equal(bound.body.action, 'bound');
+    assert.deepEqual(bound.body.paths, ['E:\\work\\alpha']);
+    assert.deepEqual(bound.body.state.servers[0].binding, {
+      paths: ['E:\\work\\alpha'],
+      restricted: true,
+    });
+    assert.deepEqual(JSON.parse(readFileSync(bindingsPath(app.dir), 'utf8')), {
+      version: 1,
+      servers: { dbx: { paths: ['E:\\work\\alpha'] } },
+    });
+    assert.equal(app.read(), SEED, 'the patch layer must stay byte-for-byte untouched');
+
+    const cleared = await app.request('POST', '/bind', { serverName: 'dbx', paths: [] });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.action, 'cleared');
+    assert.deepEqual(cleared.body.state.servers[0].binding, { paths: [], restricted: false });
+    assert.deepEqual(JSON.parse(readFileSync(bindingsPath(app.dir), 'utf8')).servers, {});
+  } finally {
+    app.dispose();
+  }
+});
+
+test('a repeated path and a trailing separator are folded into one binding', async () => {
+  const app = await boot();
+  try {
+    const { status, body } = await app.request('POST', '/bind', {
+      serverName: 'dbx',
+      paths: ['E:\\work\\alpha', 'E:\\work\\alpha\\'],
+    });
+    assert.equal(status, 200);
+    assert.deepEqual(body.paths, ['E:\\work\\alpha']);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('a relative project path is refused, and nothing is written', async () => {
+  const app = await boot();
+  try {
+    const { status, body } = await app.request('POST', '/bind', {
+      serverName: 'dbx',
+      paths: ['work\\alpha'],
+    });
+    assert.equal(status, 400, 'a relative path would silently never match a session');
+    assert.match(body.error, /绝对路径/u);
+    assert.equal(existsSync(bindingsPath(app.dir)), false);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('binding an unknown server name is refused', async () => {
+  const app = await boot();
+  try {
+    const { status, body } = await app.request('POST', '/bind', {
+      serverName: 'nope',
+      paths: ['E:\\work\\alpha'],
+    });
+    assert.equal(status, 400);
+    assert.match(body.error, /nope/u);
+    assert.equal(existsSync(bindingsPath(app.dir)), false);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('the binding guard denies a bound tool from a session outside its projects', async () => {
+  const app = await boot(SEED, { tools: [{ name: 'mcp__dbx__query' }, { name: 'mcp__dbx__tables' }] });
+  try {
+    await app.request('POST', '/bind', { serverName: 'dbx', paths: ['E:\\work\\alpha'] });
+    assert.equal(app.guards.length, 1, 'exactly one guard enforces every binding');
+    const guard = app.guards[0];
+
+    const denied = guard({ name: 'mcp__dbx__query', agent: fakeAgent('E:\\work\\beta') });
+    assert.match(denied, /项目绑定/u);
+    assert.match(denied, /E:\\work\\alpha/u, 'the denial names the bound project');
+    assert.match(denied, /Project binding/u, 'the denial carries an English half too');
+
+    assert.equal(
+      guard({ name: 'mcp__dbx__query', agent: fakeAgent('E:\\work\\alpha') }),
+      undefined,
+      'the bound project itself is allowed',
+    );
+    assert.equal(
+      guard({ name: 'mcp__dbx__query', agent: fakeAgent('E:\\Work\\Alpha\\nested') }),
+      undefined,
+      'a subdirectory is allowed, and path comparison is case-insensitive on Windows',
+    );
+    assert.match(
+      guard({ name: 'mcp__dbx__query', agent: fakeAgent('E:\\work\\alphabeta') }),
+      /项目绑定/u,
+      'a sibling that merely shares a name prefix must not be treated as inside',
+    );
+  } finally {
+    app.dispose();
+  }
+});
+
+test('the binding guard leaves unbound servers and non-MCP tools alone', async () => {
+  const app = await boot(SEED, { tools: [{ name: 'mcp__dbx__query' }] });
+  try {
+    await app.request('POST', '/bind', { serverName: 'dbx', paths: ['E:\\work\\alpha'] });
+    const guard = app.guards[0];
+    const outside = fakeAgent('E:\\work\\beta');
+
+    assert.equal(guard({ name: 'mcp__other__query', agent: outside }), undefined);
+    assert.equal(guard({ name: 'read_file', agent: outside }), undefined);
+    assert.equal(guard({ name: 'mcp__dbx', agent: outside }), undefined, 'a malformed name is not a bridge tool');
+    assert.equal(
+      guard({ name: 'mcp__dbx__query', agent: {} }),
+      undefined,
+      'an undeterminable directory must not lock a user out of their own server',
+    );
+  } finally {
+    app.dispose();
+  }
+});
+
+test('a server with several underscores in its name is denied by its full namespace', async () => {
+  const seed = `- insert:
+    - id: mcp-my_server
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: my_server
+        transport: stdio
+        command: "node.exe"
+`;
+  const app = await boot(seed, { tools: [{ name: 'mcp__my_server__do_it' }] });
+  try {
+    await app.request('POST', '/bind', { serverName: 'my_server', paths: ['E:\\work\\alpha'] });
+    const denied = app.guards[0]({ name: 'mcp__my_server__do_it', agent: fakeAgent('E:\\work\\beta') });
+    assert.match(denied, /my_server/u, 'the namespace splits at the LAST "__", not the first');
+  } finally {
+    app.dispose();
+  }
+});
+
+test('an agent outside the project has the bound tools restricted in its own scope', async () => {
+  const app = await boot(SEED, { tools: [{ name: 'mcp__dbx__query' }, { name: 'mcp__dbx__tables' }] });
+  try {
+    await app.request('POST', '/bind', { serverName: 'dbx', paths: ['E:\\work\\alpha'] });
+    assert.equal(app.listeners.get('agent/created').length, 1);
+    assert.equal(app.listeners.get('agent/pre-step').length, 1);
+
+    const outside = fakeAgent('E:\\work\\beta');
+    await app.emit('agent/created', { agent: outside, source: 'startup' });
+    assert.deepEqual(outside.restrictions, [{ deny: ['mcp__dbx__query', 'mcp__dbx__tables'] }]);
+
+    await app.emit('agent/pre-step', { agent: outside, next: () => Promise.resolve() });
+    assert.equal(outside.restrictions.length, 1, 'an unchanged binding must not re-restrict every step');
+
+    const inside = fakeAgent('E:\\work\\alpha\\sub');
+    await app.emit('agent/created', { agent: inside, source: 'startup' });
+    assert.deepEqual(inside.restrictions, [], 'a session inside the project keeps the tools');
+  } finally {
+    app.dispose();
+  }
+});
+
+test('an unbound server never restricts any agent', async () => {
+  const app = await boot(SEED, { tools: [{ name: 'mcp__dbx__query' }] });
+  try {
+    const agent = fakeAgent('E:\\work\\beta');
+    await app.emit('agent/created', { agent, source: 'startup' });
+    assert.deepEqual(agent.restrictions, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('editing a binding re-syncs the agents that are already running', async () => {
+  const live = fakeAgent('E:\\work\\beta');
+  const app = await boot(SEED, {
+    tools: [{ name: 'mcp__dbx__query' }],
+    services: { agents: { list: () => [live] } },
+  });
+  try {
+    await app.request('POST', '/bind', { serverName: 'dbx', paths: ['E:\\work\\alpha'] });
+    assert.deepEqual(live.restrictions, [{ deny: ['mcp__dbx__query'] }]);
+    assert.deepEqual(live.lifted, []);
+
+    // The live session moved to the bound project: the old restriction is
+    // withdrawn rather than a second one stacked on top of it.
+    await app.request('POST', '/bind', { serverName: 'dbx', paths: ['E:\\work\\beta'] });
+    assert.deepEqual(live.restrictions, [{ deny: ['mcp__dbx__query'] }], 'no new restriction is needed');
+    assert.deepEqual(live.lifted, [{ deny: ['mcp__dbx__query'] }], 'the old restriction is withdrawn');
+  } finally {
+    app.dispose();
+  }
+});
+
+test('a damaged binding file reads as "no bindings" instead of breaking the page', async () => {
+  const app = await boot();
+  try {
+    mkdirSync(join(app.dir, 'plugin-data', 'dsh-mcp-manager-plus'), { recursive: true });
+    writeFileSync(bindingsPath(app.dir), '{ not json');
+    const { status, body } = await app.request('GET', '/servers');
+    assert.equal(status, 200);
+    assert.deepEqual(body.servers[0].binding, { paths: [], restricted: false });
+  } finally {
+    app.dispose();
+  }
+});
+
+test('an agent whose directory cannot be determined is left alone, like the guard does', async () => {
+  const app = await boot(SEED, { tools: [{ name: 'mcp__dbx__query' }] });
+  try {
+    await app.request('POST', '/bind', { serverName: 'dbx', paths: ['E:\\work\\alpha'] });
+
+    // No session at all, and a session with an empty directory: both fail open,
+    // so the guard must allow the call AND the tools must stay visible.
+    const orphan = fakeAgent(undefined);
+    await app.emit('agent/created', { agent: orphan, source: 'startup' });
+    assert.deepEqual(orphan.restrictions, [], 'an undeterminable directory must not hide tools');
+    assert.equal(
+      app.guards[0]({ name: 'mcp__dbx__query', agent: orphan }),
+      undefined,
+      'an undeterminable directory must not deny the call either',
+    );
+
+    const blank = fakeAgent('');
+    await app.emit('agent/created', { agent: blank, source: 'startup' });
+    assert.deepEqual(blank.restrictions, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test('every declared effect unwinds, including the binding guard and listeners', async () => {
+  const app = await boot(SEED, { tools: [{ name: 'mcp__dbx__query' }] });
+  try {
+    assert.ok(app.log.includes('dsh-mcp-manager-plus: project binding guard'));
+    assert.ok(app.log.includes('dsh-mcp-manager-plus: project binding scope'));
+    app.dispose();
+    assert.equal(app.guards.length, 0, 'the guard must be withdrawn on unload');
+    assert.equal((app.listeners.get('agent/created') ?? []).length, 0);
+  } catch (error) {
+    app.dispose();
+    throw error;
+  }
+});
+

@@ -549,3 +549,99 @@ test('the advertised formats agree with what the parser accepts', async () => {
     assert.ok(mentioned.includes(tool), `"${tool}" is supported by the parser but not advertised`);
   }
 });
+
+// ── server-row actions ──────────────────────────────────────────────────────
+
+test('row actions are icon buttons whose label lives in title, aria-label and a tooltip', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  const code = stripComments(source);
+
+  // The four actions are built by one helper, so their labelling cannot drift
+  // apart. A button holding only an <svg> would be announced as nothing, hence
+  // all three carriers: aria-label names it, title is the native fallback, and
+  // data-tip feeds the stylesheet's own tooltip.
+  assert.match(code, /function actionButton\(spec\)/, 'row actions must share one builder');
+  const body = /function actionButton\(spec\) \{([\s\S]*?)\n      \}/.exec(code)?.[1];
+  assert.ok(body, 'the action builder must be present');
+  assert.match(body, /'aria-label': label/, 'an icon-only button needs an accessible name');
+  assert.match(body, /title: label/, 'the native tooltip is the fallback for touch');
+  assert.match(body, /'data-tip': label/, 'the CSS tooltip needs the label as data');
+  assert.match(body, /h\(Icon,/, 'the button must render an icon, not text');
+
+  // The stylesheet must actually paint that tooltip, or data-tip is dead weight.
+  assert.match(
+    code,
+    /\[data-tip\]::after\{content:attr\(data-tip\)/,
+    'the tooltip must be rendered from the data attribute',
+  );
+  assert.match(
+    code,
+    /\[data-tip\]:hover::after/,
+    'the tooltip must appear on hover',
+  );
+  assert.match(
+    code,
+    /\[data-tip\]:focus-visible::after/,
+    'a keyboard user must see the same label as a mouse user',
+  );
+  // ...and it must not eat the hover that shows it.
+  assert.match(code, /pointer-events:none/, 'the tooltip must not be part of the hit area');
+
+  // Every action key must have a glyph defined in ICON_PATH.
+  for (const key of ['edit', 'refresh', 'trash', 'bind']) {
+    assert.match(code, new RegExp(`\\b${key}: h\\('path'`), `ICON_PATH.${key} must be defined`);
+  }
+});
+
+test('the row never labels a user-managed server "config file"', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  const code = stripComments(source);
+  // The chip was removed so the binding state could take its place, and the
+  // now-unused dictionary entry went with it rather than lingering as dead
+  // weight in both locales.
+  assert.doesNotMatch(code, /sourceUser/, 'the retired "config file" label must be gone, not merely unused');
+  // The rows that are NOT the user's own keep their provenance: a bundle row is
+  // the one a user cannot edit, so it has to say so.
+  assert.match(
+    code,
+    /server\.source === 'user'\s*[\s\S]{0,80}?:\s*h\('span', \{ className: 'mcpmp-tag' \}, sourceLabel\)/,
+    'non-user rows must still carry their source tag',
+  );
+});
+
+test('the card does not clip the tooltip, and keeps its rounded corners without it', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  const css = stripComments(source);
+  // `overflow:hidden` used to round the card's bottom; it also cut off the
+  // tooltip the icon buttons now draw above themselves.
+  assert.doesNotMatch(
+    css,
+    /\.mcpmp-card\{[^}]*overflow:hidden/,
+    'a clipping card would cut the action tooltips in half',
+  );
+  // The bottom radius has to come from somewhere else once the clip is gone.
+  assert.match(
+    css,
+    /\.mcpmp-card>\*:last-child\{border-bottom-left-radius/,
+    'the last child must carry the bottom corners the clip used to provide',
+  );
+  // A tip that reaches above its card has to paint over the card above it.
+  assert.match(css, /\.mcpmp-card\{position:relative\}/, 'the card must establish a stacking context');
+  assert.match(css, /\.mcpmp-card:hover[^{]*\{z-index:1\}/, 'a hovered card must rise above its neighbour');
+});
+
+test('the binding state sits immediately after the tool count', () => {
+  const source = readFileSync(bundlePath, 'utf8');
+  const meta = /className: 'mcpmp-meta'[\s\S]*?\n            \),/.exec(stripComments(source))?.[0];
+  assert.ok(meta, 'the meta row must be present');
+  const order = ['mcpmp-dot', "t('toolCount'", 'bindingLabel', 'sourceLabel'].map((needle) =>
+    meta.indexOf(needle),
+  );
+  assert.ok(order.every((index) => index >= 0), 'every meta element must be present');
+  assert.ok(
+    order[1] < order[2],
+    'binding state must follow the tool count, where the source chip used to be',
+  );
+  assert.ok(order[2] < order[3], 'the source tag must come last, and only for non-user rows');
+});
+

@@ -96,6 +96,9 @@ test('the host half imports cleanly from the profile', async () => {
   const dir = join(profileDir, 'node_modules', PACKAGE);
   const mod = await import(pathToFileURL(join(dir, 'lib', 'index.js')).href);
   assert.equal(mod.name, PACKAGE);
-  assert.deepEqual(mod.inject, ['webServer']);
+  // `webServer` serves the settings page's API; `tools` is what project
+  // bindings enforce through (a global guard plus agent-scoped restrictions),
+  // so both are hard dependencies rather than `ctx.get` probes.
+  assert.deepEqual(mod.inject, ['webServer', 'tools']);
   assert.equal(typeof mod.apply, 'function');
 });

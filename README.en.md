@@ -4,7 +4,8 @@ English | [中文](README.md) | [Changelog](CHANGELOG.md)
 
 An MCP server manager plugin for DeepSeek Harness: it adds an "MCP" page to the
 settings sidebar, where you can inspect, enable/disable, edit, restart, delete
-and add MCP servers.
+and add MCP servers — and **bind a server to specific project directories** so
+that only those projects can use it.
 
 Why this plugin exists:
 
@@ -17,11 +18,15 @@ If this plugin stops working on a newer DSH release, please open an issue.
 ## Screenshots
 
 **Settings → MCP**: the server list, connection state and enable/disable toggles.
+Each row's edit / restart / delete / project-binding actions are icon buttons whose
+labels appear on hover; the second line carries the connection state, the tool
+count and the project-binding state.
 
 ![MCP manager main page](screenshot1.jpg)
 
 **Expand a server**: every tool the server currently registers with the model,
-with descriptions.
+with descriptions. An expanded row also opens with a project-binding summary
+listing the directories it is restricted to.
 
 ![Expanded tool list](screenshot5.jpg)
 
@@ -105,8 +110,50 @@ profile patch layer — that is your configuration data and will not be deleted.
 | Edit | Two switchable modes: **form** (field by field) or **JSON** (one large textarea), see below |
 | Restart | Destroys and re-initializes the server's connection in place (config unchanged); for recovering from dropped connections |
 | Delete | Removes the server and all of its override rows from the config file |
+| Icon actions | Each row's edit / restart / delete / project-binding actions are **icon buttons**; hovering (or reaching them with Tab) shows the label, which is also carried in `aria-label` for screen readers |
 | Add | Paste an MCP configuration from **any mainstream tool**; the format is detected, and multiple servers per paste are supported (see table below) |
+| Project binding | Restrict a server to a few project directories: sessions in other projects never see its tools and calls to them are refused. Takes effect on save, without touching the MCP connection (see below) |
 | Bilingual | Chinese / English. Defaults to the harness UI language (falling back to the browser's language when unavailable); switch anytime from the page header — the choice is remembered, and host-side messages follow along |
+
+## The server row
+
+A row answers "how is this server doing right now", read left to right and top to
+bottom:
+
+```
+⌄  [D]  dbx ✓
+        ● Connected  25 tools  All projects
+```
+
+- **⌄** expands or collapses the server's tool list;
+- the **square avatar** holds the server name's first letter, coloured from the
+  name — a different name gets a different colour, which makes a long list
+  scannable;
+- **dbx ✓** is the server name; the check means it is enabled;
+- the second line carries the **connection state** (Connected / Connecting /
+  Pending / Failed / Unloading / Disabled), the **tool count**, and the **project-binding
+  state** (`All projects`, or `Bound to N project(s)`). A bound row paints that
+  chip's **text** green, and hovering it lists the bound directories;
+- the far right is the **enable/disable switch**, preceded by up to four icon
+  buttons (which ones a row has depends on what it can do, see the table):
+
+| Icon | Action | Notes |
+| --- | --- | --- |
+| Pencil | Edit | Opens the edit dialog (form / JSON modes); only on rows from the config file |
+| Circular arrow | Restart | Reconnects in place, configuration unchanged; shown only while the server is mounted |
+| Bin (red) | Delete | Removes the row and its override rows from the config file; only on rows from the config file |
+| Locked folder | Project binding | Opens the binding dialog; its outline turns green once bound. Shown whenever the row has a serverName |
+
+The buttons are icons only, with their names in a hover tooltip. So that a mouse
+is not required, the name is carried in three places: `aria-label` (the
+accessible name), `title` (the native tooltip for touch and for anything that
+ignores CSS), and `data-tip` (the tooltip the stylesheet paints immediately —
+the native `title` waits about a second).
+
+Deployment-provided and built-in rows cannot be edited or deleted, so they carry
+only restart and project-binding, plus a source tag at the end of the second line
+(`Deployment` / `Built-in`). **Servers you added yourself no longer show a
+"Config file" style tag** — that slot now holds the more useful binding state.
 
 ## The two edit modes
 
@@ -208,6 +255,68 @@ the plugin tree within about a second of each save, so config changes are both
 tree; it only writes the file, then the browser briefly polls to observe the
 converged state.
 
+## Project binding
+
+MCP servers are globally available to the whole DSH instance by default. If you
+want a server to exist in **one project only**, click the **locked-folder icon**
+at the right of its row (its tooltip reads "Project binding") and list one
+absolute project directory per line:
+
+```
+D:\work\my-project
+~/work/another-project
+```
+
+Once saved:
+
+- Only sessions whose **working directory is one of those directories (or inside
+  one)** can see and call its tools;
+- In every other project its tools **do not appear in the tool list at all**
+  (they are filtered per session), and even if a model insists on a name, the
+  call is refused before execution with a message naming the bound directories;
+- Sessions that are already open are re-evaluated immediately — no dsh restart,
+  and the MCP connection itself is never touched;
+- An existing binding can be changed at any time by clicking that icon again; the
+  dialog opens pre-filled with its current paths;
+- Clearing every path **removes the binding**, returning the server to
+  "available everywhere".
+
+Matching rules (`pathKey` / `isWithin` in `lib/index.js`):
+
+- Only **absolute paths** are accepted; `~` expands to the current user's home
+  directory. A relative path is refused with a reason;
+- On Windows matching is case-insensitive, `/` and `\` are equivalent, and a
+  trailing separator is optional;
+- The test is "is it this directory, or below it", so binding `E:\work\alpha`
+  does **not** let the name-prefix sibling `E:\work\alphabeta` through.
+
+Bindings live in **this plugin's own file**, not in the patch layer:
+
+```
+$DSH_HOME/profiles/<profile>/plugin-data/dsh-mcp-manager-plus/bindings.json
+```
+
+(override with the `DSH_MCP_MANAGER_BINDINGS` environment variable). Keeping them
+out of the patch layer is deliberate: that layer composes the running plugin
+tree, so a binding written there would remount every MCP connection on each
+edit. Bindings are just plugin data, and an edit applies immediately in the
+running process.
+
+Deliberate limits, so you know what you are getting:
+
+- **It is not a sandbox.** What it restricts is *which tools a model can see and
+  call*. The MCP server process and its connection still exist (the config row
+  remains global); only this session's visibility of, and access to, its tools
+  is constrained.
+- **When the working directory cannot be determined, nothing is blocked**
+  (fail-open): better to miss a block than to lock a user out of their own
+  project.
+- **A damaged or missing `bindings.json` reads as "no bindings"**, i.e. back to
+  globally available — one bad edit cannot make a server unusable everywhere.
+- A binding is keyed by **serverName**, independent of the row's `id` in the
+  patch layer; renaming the server (a new serverName) is a different server and
+  must be bound again.
+
 ## Security model
 
 - **Loopback only.** The API lives on the same loopback web server; non-loopback
@@ -223,11 +332,15 @@ converged state.
   browser echoes them back; real secrets never appear on the page.
 - **Bundle-provided servers are read-only.** Rows contributed by the bundle
   layer can be enabled/disabled but not edited or deleted.
+- **Project bindings only ever hold local data.** The binding table is served by
+  the same loopback API, accepts absolute paths only, and is re-parsed before
+  writing; it never enters the patch layer, so editing a binding cannot affect
+  how the plugin tree is composed.
 
 ## Development
 
 ```sh
-node test/run.mjs          # all eight suites (127 assertions)
+node test/run.mjs          # all eight suites (149 assertions)
 ```
 
 | Suite | Coverage |
@@ -236,8 +349,8 @@ node test/run.mjs          # all eight suites (127 assertions)
 | `test/yaml.test.mjs` | the `js-yaml` compatibility layer: capability probing, skipping an incompatible copy, and `!!js` fidelity under the degraded parser |
 | `test/import.test.mjs` | config formats of 14 tools, the TOML subset, JSON comments and trailing commas |
 | `test/editjson.test.mjs` | JSON-mode editing: in-place updates, renames keeping id and overrides, multi-server rejection |
-| `test/host.test.mjs` | every host-side HTTP route, driving the real `apply()` through a fake Cordis context |
-| `test/client.test.mjs` | whether the shell can load the browser bundle and register the settings page, mode switch included |
+| `test/host.test.mjs` | every host-side HTTP route, driving the real `apply()` through a fake Cordis context; project-binding guard denials and per-session tool restrictions included |
+| `test/client.test.mjs` | whether the shell can load the browser bundle and register the settings page; the mode switch, the icon buttons' three label carriers, and that the card does not clip its tooltips |
 | `test/compose.test.mjs` | composing a real profile from the bundle layer, confirming this plugin's rows mount |
 | `test/live.test.mjs` | read-only run against the real profile, confirming live configs read correctly with secrets masked |
 
@@ -245,11 +358,17 @@ The tests use no test framework — just Node's built-in `node:test` — and reu
 the `js-yaml` from the profile (the same parse path as the runtime, compatibility
 layer in `lib/yaml.js` included).
 
+> One case in `test/compose.test.mjs` composes the real profile's plugin tree and
+> asserts that no two bundles insert the same row id. It reads the profile on
+> **this machine**, so if two installed plugins collide on an id that case fails
+> — that is a problem with your profile, not a regression in this plugin, and the
+> failure names the colliding id.
+
 ### Layout
 
 | File | Purpose |
 | --- | --- |
-| `lib/index.js` | host side: HTTP API, inventory projection, write operations |
+| `lib/index.js` | host side: HTTP API, inventory projection, write operations, and project-binding storage plus enforcement |
 | `lib/import.js` | import parsing: each tool's config format → this plugin's server shape |
 | `lib/patch.js` | patch-layer read/write: segmentation, parsing, validation, generation |
 | `lib/yaml.js` | `js-yaml` compatibility: capability probing, skipping an incompatible copy, and a degraded parser when no copy can carry the custom type |
@@ -265,6 +384,9 @@ layer in `lib/yaml.js` included).
 | `node tools/check-client-bundle.mjs` | loads the client bundle the way the shell does and checks the registration result and nav-icon CSS |
 | `node tools/check-segmented.mjs` | checks the segmented switch's slider geometry (inset, half-width, offset) against the track assumptions |
 | `node tools/preview-edit-modes.mjs` | renders both edit-dialog modes with the real components into `edit-modes-preview.html` |
+| `node tools/preview-row.mjs` | renders every shape of server row (user / bundle / builtin / disabled / bound / expanded) into `row-preview.html` |
+| `node tools/preview-actions.mjs` | renders each icon button with its tooltip, one at a time and at 3×, into `actions-preview.html` |
+| `node tools/preview-tips.mjs` | checks that a tooltip escapes the card, that the last button's tip stays right-aligned, and that the bottom corners survive without `overflow:hidden`, into `tips-preview.html` |
 | `node tools/check-nav-icon.mjs` | checks that the nav icon's mask payload is a drawable 16×16 template |
 | `node tools/gen-icon-preview.cjs` | extracts icons from the dsh web bundle into the `icon-options.html` comparison page |
 | `node tools/dump-icon.cjs <IconName>` | prints an icon's SVG path for hand-written overrides |
