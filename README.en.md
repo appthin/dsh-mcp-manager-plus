@@ -129,11 +129,31 @@ bottom:
 - the **square avatar** holds the server name's first letter, coloured from the
   name — a different name gets a different colour, which makes a long list
   scannable;
-- **dbx ✓** is the server name; the check means it is enabled;
+- **dbx ✓** is the server name; the check means it is enabled (it is withheld
+  while the connection is known to be down — see below);
 - the second line carries the **connection state** (Connected / Connecting /
-  Pending / Failed / Unloading / Disabled), the **tool count**, and the **project-binding
-  state** (`All projects`, or `Bound to N project(s)`). A bound row paints that
-  chip's **text** green, and hovering it lists the bound directories;
+  Reconnecting / Pending / Failed / Disconnected / Missing credentials / May be
+  disconnected / Unloading / Disabled), the **tool count**, and the
+  **project-binding state** (`All projects`, or `Bound to N project(s)`). A bound
+  row paints that chip's **text** green, and hovering it lists the bound
+  directories;
+- the badge reports the **MCP handshake**, not "the plugin entry mounted". A
+  child process that never starts, a failed handshake or a failed auth all happen
+  after the entry loaded, so the entry stays `active` forever — which is how a
+  row could claim "Connected · 0 tools"
+  ([#6](https://github.com/appthin/dsh-mcp-manager-plus/issues/6)). The order is
+  now:
+  1. use the connection state from `dsh-mcp-client` when it can be read:
+     `failed` → Failed, `closed` → Disconnected, `connecting` / `reconnecting` →
+     Connecting / Reconnecting, `waiting-credentials` → Missing credentials,
+     `connected` → Connected;
+  2. when it cannot be read, an **enabled, mounted row exposing zero tools**
+     degrades to "May be disconnected" (amber dot) instead of claiming a
+     connection; a row with tools gets no such field, because registered tools
+     already prove the handshake happened.
+
+  Failure details (`spawn ENOENT` and friends) and reconnect progress go in the
+  badge's hover title.
 - the far right is the **enable/disable switch**, preceded by up to four icon
   buttons (which ones a row has depends on what it can do, see the table):
 

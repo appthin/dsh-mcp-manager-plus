@@ -645,3 +645,69 @@ test('the binding state sits immediately after the tool count', () => {
   assert.ok(order[2] < order[3], 'the source tag must come last, and only for non-user rows');
 });
 
+test('the badge follows the bridge connection state, not the fiber phase alone', () => {
+  const code = stripComments(readFileSync(bundlePath, 'utf8'));
+  // A failed handshake leaves the loader entry `active`, so the fiber phase is
+  // the wrong source for the badge. The bridge's own state has to be the one
+  // that decides the label and the dot while the phase is active.
+  for (const state of ['connected', 'connecting', 'reconnecting', 'failed', 'closed', 'waiting-credentials', 'unknown']) {
+    assert.match(
+      code,
+      new RegExp(`'?${state}'?: '(phase[A-Za-z]+)'`),
+      `bridge state "${state}" must map to its own label`,
+    );
+  }
+  assert.match(
+    code,
+    /phase === 'active' && connectionState !== ''/,
+    'the connection state must only override while the entry is active',
+  );
+  // The dot has to use the mapped phase, or "failed" would paint green.
+  assert.match(
+    code,
+    /className: 'mcpmp-dot mcpmp-dot-' \+ dotPhase/,
+    'the status dot must use the connection-mapped phase',
+  );
+  assert.doesNotMatch(
+    code,
+    /className: 'mcpmp-dot mcpmp-dot-' \+ phase\b/,
+    'the dot must not paint the raw lifecycle phase while a connection state exists',
+  );
+});
+
+test('the enabled tick is withheld while the connection is known to be down', () => {
+  const code = stripComments(readFileSync(bundlePath, 'utf8'));
+  // The green tick next to a "连接失败" badge was the second half of the
+  // contradiction reported in issue #6.
+  assert.match(
+    code,
+    /var showEnabledTick = server\.enabled && phase !== 'failed' && !connectionDown/,
+    'the tick must be conditional on the connection, not just the switch',
+  );
+  assert.match(code, /showEnabledTick \? h\('span'/, 'the tick must be rendered from that decision');
+  assert.doesNotMatch(
+    code,
+    /server\.enabled \? h\('span', \{ style: \{ color: 'var\(--dsw-alias-state-success-primary\)' \} \}, '✓'\)/,
+    'the tick must not be rendered from the switch alone',
+  );
+  // "unknown" is the fallback for a mounted, enabled, zero-tool row: an
+  // unproven connection must not be painted as a healthy one either.
+  assert.match(
+    code,
+    /connectionState === 'failed' \|\|\s*connectionState === 'closed' \|\|\s*connectionState === 'unknown'/,
+    'an unverified connection must be treated as down for the tick',
+  );
+});
+
+test('a zero-tool row does not blame the connection once it is confirmed', () => {
+  const code = stripComments(readFileSync(bundlePath, 'utf8'));
+  // `noTools` hedges ("possibly not connected"), which is wrong once the
+  // handshake succeeded — and it was the only thing the empty state said.
+  assert.match(
+    code,
+    /connectionState === 'connected'[\s\S]{0,120}?t\('noToolsConnected'\)/,
+    'a confirmed connection must explain the empty list without the disconnect hedge',
+  );
+  assert.match(code, /: t\('noTools'\)/, 'an unconfirmed connection keeps the hedged wording');
+});
+

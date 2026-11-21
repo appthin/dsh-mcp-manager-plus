@@ -224,3 +224,140 @@ test('a row the patch layer does not own is listed from the composed tree', { sk
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+/**
+ * A stand-in for `@deepseek-ai/dsh-mcp-client`'s status API.
+ *
+ * The real module's status cell is a WeakMap keyed by the fiber, so a fake has
+ * to hand back a handle per fiber. Each fixture fiber carries its own
+ * `status` field, which keeps the case data in the test instead of the fixture.
+ */
+const STATUS_FIXTURE = `export function connectionStatusOf(fiber) {
+  const status = fiber && fiber.status;
+  if (!status) return undefined;
+  return {
+    current: () => status,
+    closure: () => ({ closeConfirmed: true }),
+    onChange: () => () => {},
+  };
+}
+`;
+
+/**
+ * Run `body` with the status-module override pointed at a fixture.
+ *
+ * The override is the only injection point the host exposes, so the env var has
+ * to be restored afterwards: a leftover value would make every later case read
+ * a status the fixture no longer stands behind.
+ * @param fixture - module source the host will import as the status bridge.
+ * @param body - the cases to run while the override is installed.
+ */
+async function withStatusModule(fixture, body) {
+  const dir = mkdtempSync(join(tmpdir(), 'mcp-manager-status-'));
+  const modulePath = join(dir, 'status-fixture.mjs');
+  writeFileSync(modulePath, fixture);
+  const previous = process.env.DSH_MCP_MANAGER_STATUS_MODULE;
+  process.env.DSH_MCP_MANAGER_STATUS_MODULE = modulePath;
+  try {
+    await body();
+  } finally {
+    if (previous === undefined) delete process.env.DSH_MCP_MANAGER_STATUS_MODULE;
+    else process.env.DSH_MCP_MANAGER_STATUS_MODULE = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** A fiber whose bridge reports `status`, as a live entry would carry. */
+function entryWithStatus(status) {
+  return { ...DBX_ENTRY, fiber: { state: 2, status } };
+}
+
+test('a failed handshake is reported as failed even though the fiber is active', { skip: !hasProfile }, async () => {
+  await withStatusModule(STATUS_FIXTURE, async () => {
+    const entry = entryWithStatus({
+      state: 'failed',
+      reason: 'gave-up',
+      lastError: 'spawn node ENOENT',
+    });
+    const { request, dir } = await bootSynthetic(DBX_PATCH, [entry]);
+    try {
+      const { body } = await request('GET', '/servers');
+      const dbx = body.servers.find((server) => server.serverName === 'dbx');
+      // The lifecycle phase is unchanged on purpose: it answers "did the plugin
+      // mount", which is a different question from "did the handshake succeed".
+      assert.equal(dbx.live.phase, 'active', 'the loader entry itself mounted fine');
+      assert.equal(dbx.live.connection.state, 'failed');
+      assert.equal(dbx.live.connection.reason, 'gave-up');
+      assert.equal(dbx.live.connection.lastError, 'spawn node ENOENT');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test('a confirmed connection keeps saying connected, with zero tools or not', { skip: !hasProfile }, async () => {
+  await withStatusModule(STATUS_FIXTURE, async () => {
+    const entry = entryWithStatus({ state: 'connected', toolCount: 0, connectedAt: 1_700_000_000 });
+    const { request, dir } = await bootSynthetic(DBX_PATCH, [entry]);
+    try {
+      const { body } = await request('GET', '/servers');
+      const dbx = body.servers.find((server) => server.serverName === 'dbx');
+      // A real handshake that simply exposed nothing must not be downgraded to
+      // the "maybe disconnected" guess the fallback would otherwise produce.
+      assert.equal(dbx.live.connection.state, 'connected');
+      assert.equal(dbx.live.connection.toolCount, 0);
+      assert.equal(dbx.live.connection.connectedAt, 1_700_000_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test('an active row with no tools and no bridge status is reported as unverified', { skip: !hasProfile }, async () => {
+  // No override: this run exercises the fallback that has to work when the
+  // bridge status API cannot be reached at all.
+  const { request, dir } = await bootSynthetic(DBX_PATCH, [DBX_ENTRY]);
+  try {
+    const { body } = await request('GET', '/servers');
+    const dbx = body.servers.find((server) => server.serverName === 'dbx');
+    assert.equal(dbx.live.phase, 'active');
+    assert.equal(dbx.live.toolCount, 0);
+    assert.equal(
+      dbx.live.connection?.state,
+      'unknown',
+      'a mounted row with no tools must not claim a connection nobody confirmed',
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an active row with tools says nothing about a connection it cannot see', { skip: !hasProfile }, async () => {
+  const tools = { schemas: () => [{ name: 'mcp__dbx__dbx_ping', description: 'Ping' }] };
+  const { request, dir } = await bootSynthetic(DBX_PATCH, [DBX_ENTRY], { tools });
+  try {
+    const { body } = await request('GET', '/servers');
+    const dbx = body.servers.find((server) => server.serverName === 'dbx');
+    assert.equal(dbx.live.toolCount, 1);
+    // Registered tools already prove the handshake happened; adding a
+    // connection field would only restate what the count shows.
+    assert.equal(dbx.live.connection, undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a disabled row is never described as a connection problem', { skip: !hasProfile }, async () => {
+  await withStatusModule(STATUS_FIXTURE, async () => {
+    const entry = entryWithStatus({ state: 'connected', toolCount: 4, connectedAt: 1_700_000_000 });
+    const { request, dir } = await bootSynthetic(`${DBX_PATCH}- id: mcp-dbx\n  disabled: true\n`, [entry]);
+    try {
+      const { body } = await request('GET', '/servers');
+      const dbx = body.servers.find((server) => server.serverName === 'dbx');
+      assert.equal(dbx.live.phase, 'disabled');
+      assert.equal(dbx.live.connection, undefined, 'a row we disabled has no live connection to report');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

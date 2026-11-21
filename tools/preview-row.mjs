@@ -89,9 +89,19 @@ function toHtml(node) {
   const attrs = [];
   for (const [key, value] of Object.entries(node.props ?? {})) {
     if (key === 'children' || key === 'key' || key === 'ref') continue;
-    if (value === undefined || value === null || typeof value === 'function' || typeof value === 'object') continue;
-    // React writes style objects as inline CSS; the row uses a few, so keep
-    // them rather than dropping the switch's own state.
+    if (value === undefined || value === null || typeof value === 'function') continue;
+    if (typeof value === 'object') {
+      // React writes style objects as inline CSS. Dropping them loses real
+      // paint — the avatar's background is inline, and without it the preview
+      // renders white-on-white and every contrast check lies about the page.
+      if (key !== 'style') continue;
+      const css = Object.entries(value)
+        .filter(([, v]) => v !== undefined && v !== null && v !== false)
+        .map(([prop, v]) => `${prop.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:${v}`)
+        .join(';');
+      if (css !== '') attrs.push(`style="${css.replace(/"/g, '&quot;')}"`);
+      continue;
+    }
     const name = ATTR_NAMES[key] ?? key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
     attrs.push(`${name}="${String(value).replace(/"/g, '&quot;')}"`);
   }
@@ -110,11 +120,24 @@ const dict = {
   bindScopeLimited: '仅限 {n} 个项目',
   toolCount: '{n} 个工具',
   phaseActive: '已连接',
+  phaseLoading: '连接中',
+  phasePending: '等待中',
+  phaseFailed: '连接失败',
   phaseDisabled: '已停用',
+  phaseUnloading: '卸载中',
+  phaseReconnecting: '重连中',
+  phaseClosed: '已断开',
+  phaseCredentials: '缺少凭据',
+  phaseUnverified: '可能未连接',
+  reasonGaveUp: '已放弃重连',
+  reasonReconnectDisabled: '自动重连已关闭',
+  reasonUnclosed: '上一代连接未关闭',
+  reconnectDetail: '第 {attempt}/{max} 次重连',
   sourceUser: '配置文件',
   sourceBundle: '部署内置',
   sourceBuiltin: '内置能力',
   noTools: '暂无工具',
+  noToolsConnected: '服务器已连接，但未提供任何工具。',
   expand: '展开',
   collapse: '收起',
 };
@@ -136,8 +159,26 @@ const base = {
 };
 
 const rows = [
-  ['user row, 0 tools, global', { ...base, binding: { paths: [], restricted: false },
-    live: { mounted: true, phase: 'active', toolCount: 0, tools: [] } }],
+  // A mounted row with no tools and no readable bridge status: the fallback
+  // reported in issue #6 must read as "possibly not connected", not "connected".
+  ['user row, 0 tools, connection unverified', { ...base, binding: { paths: [], restricted: false },
+    live: { mounted: true, phase: 'active', toolCount: 0, tools: [], connection: { state: 'unknown' } } }],
+  ['user row, handshake failed', { ...base, serverName: 'chrome-devtools', displayName: 'chrome-devtools',
+    binding: { paths: [], restricted: false },
+    live: { mounted: true, phase: 'active', toolCount: 0, tools: [], connection: {
+      state: 'failed', reason: 'gave-up',
+      lastError: 'Error: spawn npx ENOENT: chrome-devtools-mcp requires node ^20.19.0 || ^22.12.0 || >=23',
+    } } }],
+  ['user row, reconnecting', { ...base, serverName: 'rea', displayName: 'rea',
+    binding: { paths: [], restricted: false },
+    live: { mounted: true, phase: 'active', toolCount: 0, tools: [], connection: {
+      state: 'reconnecting', attempt: 2, maxAttempts: 5, nextRetryAtMs: 0, lastError: 'socket hang up',
+    } } }],
+  ['user row, connected with no tools', { ...base, serverName: 'empty', displayName: 'empty',
+    binding: { paths: [], restricted: false },
+    live: { mounted: true, phase: 'active', toolCount: 0, tools: [], connection: {
+      state: 'connected', toolCount: 0, connectedAt: 1_700_000_000,
+    } } }],
   ['user row, bound to one project', { ...base, serverName: 'github', displayName: 'github',
     binding: { paths: ['D:\\work\\my-project'], restricted: true },
     live: { mounted: true, phase: 'active', toolCount: 12, tools: [] } }],
@@ -156,6 +197,11 @@ const rows = [
       { name: 'query', fullName: 'mcp__dbx__query', description: 'Run a read-only query.' },
       { name: 'tables', fullName: 'mcp__dbx__tables', description: 'List tables.' },
     ] } }],
+  ['connected with no tools, expanded', { ...base, serverName: 'empty', displayName: 'empty',
+    binding: { paths: [], restricted: false },
+    live: { mounted: true, phase: 'active', toolCount: 0, tools: [], connection: {
+      state: 'connected', toolCount: 0, connectedAt: 1_700_000_000,
+    } } }],
 ];
 
 const htmlRows = rows.map(([label, server]) => {

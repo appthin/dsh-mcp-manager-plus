@@ -5,6 +5,41 @@
 
 0.3.1 之前的开发发生在公开仓库建立之前，历史没有保留。
 
+## [0.5.2] - 2026-11-21
+
+### Fixed
+
+- **连接彻底失败的行仍显示「已连接」，与「0 个工具」自相矛盾**
+  ([#6](https://github.com/appthin/dsh-mcp-manager-plus/issues/6))：状态徽章原来取的是
+  Cordis fiber 的生命周期（`FIBER_PHASE[2] = 'active'`），它只回答「插件条目挂载
+  成功了吗」。MCP 子进程是条目加载**之后**才 spawn 的，进程起不来、握手失败、
+  鉴权失败都不会回头改 `fiber.state`，于是 `chrome-devtools-mcp` 这种「Node 版本
+  不满足 engines、npx 一启动就退出」的服务器稳定显示「已连接 · 0 个工具」，而宿主
+  侧实际报 `server is disconnected`。
+  - 现在优先读 `dsh-mcp-client` 自己的连接状态（`connectionStatusOf(fiber)` →
+    `failed` / `closed` / `connecting` / `reconnecting` / `waiting-credentials` /
+    `connected`），映射成「连接失败 / 已断开 / 连接中 / 重连中 / 缺少凭据 / 已连接」，
+    失败原因与重连进度作为悬停提示。状态单元是 `WeakMap` 按 fiber 存的，所以按
+    **裸导入 → loader 内部 import → 各解析锚点（profile、插件目录、`app.asar/dsh`）**
+    依次尝试，拿到哪个副本就用哪个；**新旧两代 `dsh-mcp-client` 都能兼容**（老副本
+    没有这个导出，直接跳过）。
+  - 读不到状态时按工具数兜底：**已启用 + 已挂载 + 0 个工具**降级为「可能未连接」
+    （黄点），不再声称已连接；已有工具的行不加这个字段，因为工具注册本身已证明
+    握手成功过。
+  - 顺带修掉两处同源的矛盾：「已启用 ✓」在连接确认断开时不再绘制（原来它和
+    「连接失败」并排出现）；展开后的空态在握手已确认时改用「服务器已连接，但未提供
+    任何工具」，不再用「可能未连接」的含糊说法。
+  - `live.phase` 的含义与取值**保持不变**（仍是对条目生命周期的回答），新增的
+    真实状态放在 `live.connection`，旧前端与旧测试不受影响。
+  - 回归用例 7 项（测试总数 149 → 157）：握手失败但 fiber 为 `active`、确认连接且
+    0 工具不降级、无状态可读且 0 工具的兜底、有工具时不加字段、已停用行不报连接
+    问题，以及客户端侧的状态映射、勾选条件与空态文案。测试通过
+    `DSH_MCP_MANAGER_STATUS_MODULE` 注入一个假的桥接模块，不依赖真机安装的包。
+- **行预览工具丢掉 `style` 对象**（仅开发脚本 `tools/preview-row.mjs`）：序列化
+  JSX 树时把 `style={{...}}` 整个跳过，头像的底色是行内样式，于是预览页渲染成
+  白字白底，任何按预览页做对比度检查都会误报 1:1。现在会把样式对象写成内联
+  CSS，预览与真实渲染一致。
+
 ## [0.5.0] - 2026-11-11
 
 ### Added
@@ -245,6 +280,9 @@
   JSON 编辑、宿主路由、bundle 加载、profile 组合与真实 profile 只读验证；
   另附 e2e 导入、往返校验、图标预览等辅助脚本
 
+[0.5.2]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.5.0...v0.5.2
+[0.5.0]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.5...v0.5.0
+[0.4.5]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/appthin/dsh-mcp-manager-plus/compare/v0.4.1...v0.4.2
